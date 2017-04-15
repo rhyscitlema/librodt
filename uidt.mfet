@@ -1,0 +1,80 @@
+result;
+
+name = "User_Interface_Definition_Text";
+
+
+wh = MainWindowWidthHeight;
+w = wh[0];
+h = wh[1];
+
+h1 = 60;    # height of 1st layer
+h2 = 30;    # height of 2nd layer
+h3 = 30;    # height of 3rd layer
+h4 = 50;    # height of 4th layer
+h5 = 20;    # height of 5th layer
+
+y5 =  h-h5; # y_start of 5th layer
+y4 = y5-h4; # y_start of 4th layer
+y3 = y4-h3; # y_start of 3rd layer
+y2 = y3-h2; # y_start of 2nd layer
+y1 = y2-h1; # y_start of 1st layer
+
+a = 60;
+
+
+main_textfield      = {0, 0, w, y1};
+
+eval_button         = {   0, y1,   30   , h1};
+message_textfield   = {  30, y1, w-30-20, h1};
+lock_button         = {w-20, y1,      20, h1};
+
+prev_button         = {0*a, y2,  a  , h2};
+next_button         = {1*a, y2,  a  , h2};
+delete_button       = {2*a, y2,  a  , h2};
+clear_button        = {3*a, y2,  a  , h2};
+path_textfield      = {4*a, y2,w-4*a, h2};
+
+pause_button        = {0*a, y3,  a  , h3};
+forward_button      = {1*a, y3,  a  , h3};
+lower_button        = {2*a, y3,  a  , h3};
+higher_button       = {3*a, y3,  a  , h3};
+time_textfield      = {4*a, y3,w-4*a, h3};
+
+calc_button         = { 0          , y4,    a     , h4};
+calc_input          = { a          , y4, (w-a)*3/5, h4};
+calc_result         = { a+(w-a)*3/5, y4, (w-a)*2/5, h4};
+
+status_bar          = {0, y5, w, h5};
+
+
+private result =
+    ("main_textfield    " , main_textfield    ) ,
+
+    ("eval_button       " , eval_button       ) ,
+    ("message_textfield " , message_textfield ) ,
+    ("lock_button       " , lock_button       ) ,
+
+    ("prev_button       " , prev_button       ) ,
+    ("next_button       " , next_button       ) ,
+    ("delete_button     " , delete_button     ) ,
+    ("clear_button      " , clear_button      ) ,
+    ("path_textfield    " , path_textfield    ) ,
+
+    ("pause_button      " , pause_button      ) ,
+    ("forward_button    " , forward_button    ) ,
+    ("lower_button      " , lower_button      ) ,
+    ("higher_button     " , higher_button     ) ,
+    ("time_textfield    " , time_textfield    ) ,
+
+    ("calc_button       " , calc_button       ) ,
+    ("calc_input        " , calc_input        ) ,
+    ("calc_result       " , calc_result       ) ,
+
+    ("status_bar        " , status_bar        ) ;
+
+
+lower_period  =  TimerPeriod - 25;
+higher_period =  TimerPeriod + 25;
+
+PixelSize = 1/1000 ; # => 1000 pixels per unit length
+
