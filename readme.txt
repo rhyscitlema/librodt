@@ -5,11 +5,10 @@ Main library for Rhyscitlema Graph Plotter 3D.
 
 To compile with GCC:
 
-first download the folders:
+first get the folders:
     * ../algorithms
     * ../lib_std
     * ../libmfet
-    * ../librodt
     * ../read_write_image_file
 
 then execute: make
