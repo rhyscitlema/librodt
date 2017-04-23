@@ -267,7 +267,7 @@ static bool rodt_load (Container* rodt)
 static Container* get_selected ()
 {
     lchar* path=NULL;
-    astrcpy32(&path, userinterface_get_text(UI_path_text));
+    astrcpy32(&path, userinterface_get_text(UI_PATH_TEXT));
     set_line_coln_file(path, 1, 1, CST21("path name"));
 
     Container* container = NULL;
@@ -408,12 +408,12 @@ void select_container (Container* container)
     if(ISOBJECT(type))
     {
         Object* obj = (Object*)container->owner;
-        userinterface_set_text (UI_main_text, CST23(mfet));
+        userinterface_set_text (UI_MAIN_TEXT, CST23(mfet));
         headMouse->clickedObject = obj;
         if(type==CAMERA) headMouse->clickedCamera = (Camera*)obj;
     }
     else display_main_text (CST23(mfet));
-    userinterface_set_text(UI_path_text, container_path_name(container));
+    userinterface_set_text(UI_PATH_TEXT, container_path_name(container));
     display_message(NULL);
 }
 
@@ -443,8 +443,8 @@ void tools_get_next()
 void tools_do_clear()
 {
     main_entry_mfet = NULL;
-    userinterface_set_text(UI_mesg_text, NULL);
-    userinterface_set_text(UI_path_text, NULL);
+    userinterface_set_text(UI_MESG_TEXT, NULL);
+    userinterface_set_text(UI_PATH_TEXT, NULL);
 }
 
 
@@ -452,13 +452,13 @@ void tools_do_clear()
 void tools_do_pause (bool pause)
 {
     timer_pause(pause);
-    userinterface_set_text(UI_pause_button, CST21(pause ? TEXT_RESUME : TEXT_PAUSE));
+    userinterface_set_text(UI_PAUSE_BUTTON, CST21(pause ? TEXT_RESUME : TEXT_PAUSE));
 }
 
 static void time_reverse_set_text()
 {
     const char* text = timer_get_period()<0 ? TEXT_FORWARD : TEXT_BACKWARD ;
-	userinterface_set_text (UI_forward_button, CST21(text));
+    userinterface_set_text (UI_FORWARD_BUTTON, CST21(text));
 }
 
 void tools_go_forward (bool forward)
@@ -499,7 +499,7 @@ void tools_higher_period() { edit_period("higher_period"); }
 
 bool tools_set_time (const mchar* entry)
 {
-    if(!entry) entry = userinterface_get_text(UI_time_text);
+    if(!entry) entry = userinterface_get_text(UI_TIME_TEXT);
     while(true) // not a loop
     {
         const value* vst = mfet_parse_and_evaluate(entry, NULL, VST21);
@@ -553,7 +553,7 @@ void tools_remove_all_objects (bool ask_confirmation)
     mouse_clear_pointers(headMouse);
     display_main_text(NULL);
     display_message(NULL);
-    userinterface_set_text(UI_path_text, NULL);
+    userinterface_set_text(UI_PATH_TEXT, NULL);
     object_remove_all(camera_list);
     object_remove_all(surface_list);
 }

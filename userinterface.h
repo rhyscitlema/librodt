@@ -7,8 +7,12 @@
 #include <structures.h>
 
 
+#define TEXT_PREV "Prev"
+#define TEXT_NEXT "Next"
+#define TEXT_DELE "Dele"
+#define TEXT_CLEAR "Clear"
 #define TEXT_PAUSE "||"
-#define TEXT_RESUME ">>"
+#define TEXT_RESUME "\u25BA"
 #define TEXT_FORWARD "-->"
 #define TEXT_BACKWARD "<--"
 #define TEXT_LOWER "[ ]"
@@ -17,14 +21,14 @@
 
 enum UI_ITEM
 {
-    UI_main_text,
-    UI_mesg_text,
-    UI_path_text,
-    UI_time_text,
-    UI_pause_button,
-    UI_forward_button,
-    UI_calc_input,
-    UI_calc_result,
+    UI_MAIN_TEXT,
+    UI_MESG_TEXT,
+    UI_PATH_TEXT,
+    UI_TIME_TEXT,
+    UI_PAUSE_BUTTON,
+    UI_FORWARD_BUTTON,
+    UI_CALC_INPUT,
+    UI_CALC_RESULT,
     UI_ITEM_TOTAL
 };
 

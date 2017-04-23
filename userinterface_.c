@@ -17,15 +17,15 @@
 void display_main_text (const mchar* text)
 {
     if(text==NULL) text = userMessage();
-    userinterface_set_text (UI_main_text, text);
-    userinterface_set_text (UI_path_text, NULL);
+    userinterface_set_text (UI_MAIN_TEXT, text);
+    userinterface_set_text (UI_PATH_TEXT, NULL);
     mouse_clear_pointers(headMouse);
 }
 
 void display_message (const mchar* message)
 {
     puts2(message);
-    userinterface_set_text (UI_mesg_text, message);
+    userinterface_set_text (UI_MESG_TEXT, message);
 }
 
 
@@ -50,7 +50,7 @@ static bool calculator_evaluate (const mchar* source, Container** mfet_ptr, enum
 
         // skip mfet_evaluate(), as it will later
         // be called via calculator_evaluate_main(0);
-        if(input==UI_main_text) return true;
+        if(input==UI_MAIN_TEXT) return true;
     }
     mfet = *mfet_ptr;
     if(mfet != NULL)
@@ -69,10 +69,10 @@ static bool calculator_evaluate (const mchar* source, Container** mfet_ptr, enum
 static Container* calculator_mfet = NULL;
 
 bool calculator_evaluate_main (const mchar* source)
-{ return calculator_evaluate (source, &main_entry_mfet, UI_main_text, UI_mesg_text); }
+{ return calculator_evaluate (source, &main_entry_mfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
 
 bool calculator_evaluate_calc (bool parse)
-{ return calculator_evaluate ((parse ? CST21(TEXT_CALC) : NULL), &calculator_mfet, UI_calc_input, UI_calc_result); }
+{ return calculator_evaluate ((parse ? CST21(TEXT_CALC) : NULL), &calculator_mfet, UI_CALC_INPUT, UI_CALC_RESULT); }
 
 
 
@@ -83,7 +83,7 @@ void display_time_text()
     vst[1+0] = setSmaInt(timer_get_period());
     vst[1+1] = timer_get_time();
     VstToStr(vst, errormessage, 0,-1,-1,-1);
-    userinterface_set_text(UI_time_text, errormessage);
+    userinterface_set_text(UI_TIME_TEXT, errormessage);
 }
 
 static void userinterface_process ()

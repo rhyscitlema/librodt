@@ -26,13 +26,7 @@ void timer_install_do ();
 bool timer_handler_do ();
 
 
-//*************************
 //*** Platform-specific ***
-//*************************
-
-#if defined(WIN32) || defined(GTK_API)
-void timer_install (void* window);
-#endif
 
 void timer_set_period_do (int period);
 

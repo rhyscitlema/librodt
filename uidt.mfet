@@ -77,4 +77,3 @@ lower_period  =  TimerPeriod - 25;
 higher_period =  TimerPeriod + 25;
 
 PixelSize = 1/1000 ; # => 1000 pixels per unit length
-

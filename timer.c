@@ -69,10 +69,8 @@ value timer_get_time () { return timer_time; }
 
 
 
-//*************************
 //*** Platform-specific ***
-//*************************
-
+/*
 #if defined(WIN32) || defined(GTK_API)
 
 #ifdef WIN32
@@ -123,5 +121,6 @@ void timer_set_period_do (int period)
     #endif
 }
 
-
 #endif
+*/
+

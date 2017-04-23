@@ -33,4 +33,3 @@ private
  boundary =  {0,1,0,1,0,1};
  accuracy =  1;
 }
-

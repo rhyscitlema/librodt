@@ -101,6 +101,7 @@ bool surface_set (Container* container)
 
 #define LIM (1/(SmaFlt)(1<<10))
 
+// TODO: using (a==b) sometimes fails for an optimized compilation on Windows
 #define equal(a,b) (*(unsigned long long*)(&a) == *(unsigned long long*)(&b))
 
 
