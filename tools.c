@@ -27,8 +27,8 @@ static Container* base_rodt = NULL;
 static Container* base_uidt = NULL;
 static Container* curr_uidt = NULL;
 
-static const mchar base_uidt_mfet[];
-static const mchar base_rodt_rodt[];
+static const wchar base_uidt_mfet[];
+static const wchar base_rodt_rodt[];
 
 static const char* uidt_name[] = {
     "main_textfield",
@@ -116,8 +116,8 @@ bool tools_uidt_eval (int layout[][4], void* _uidt)
 }
 
 
-static mchar* usermessage = NULL;
-const mchar* userMessage() { return usermessage; };
+static wchar* usermessage = NULL;
+const wchar* userMessage() { return usermessage; }
 
 static bool set_user_message (Container* rodt)
 {
@@ -132,7 +132,7 @@ static bool set_user_message (Container* rodt)
         if(!isString(eca.stack[0]))
         {
             set_message(eca.garg->message,
-                CST21("Error in \\1 at \\2:\\3:\r\b '\\4' must evaluate to a string."),
+                L"Error in \\1 at \\2:\\3:\r\b '\\4' must evaluate to a string.",
                 c_name(component));
             return false;
         }
@@ -144,7 +144,7 @@ static bool set_user_message (Container* rodt)
 }
 
 
-void tools_init (int stack_size, const mchar* uidt_mfet)
+void tools_init (int stack_size, const wchar* uidt_mfet)
 {
     lchar* text=NULL;
     bool success;
@@ -156,7 +156,7 @@ void tools_init (int stack_size, const mchar* uidt_mfet)
     if(!uidt_mfet || !uidt_mfet[0])
         uidt_mfet = base_uidt_mfet;
     astrcpy32(&text, uidt_mfet);
-    set_line_coln_file(text, 1, 1, CST21("UIDT"));
+    set_line_coln_source(text, 1, 1, L"UIDT");
 
     success=false;
     base_uidt = container_parse(NULL, NULL, text); text=NULL;
@@ -172,7 +172,7 @@ void tools_init (int stack_size, const mchar* uidt_mfet)
     #ifdef LIBRODT
     // 2) set BASE RODT
     astrcpy32(&text, base_rodt_rodt);
-    set_line_coln_file(text, 1, 1, CST21("RODT"));
+    set_line_coln_source(text, 1, 1, L"RODT");
     base_rodt = (Container*)mfet_parse(NULL, text); text=NULL;
     assert(base_rodt!=NULL);
     set_user_message(base_rodt);
@@ -199,10 +199,10 @@ enum CONT_TYPE {
     RODT,
     CAMERA,
     SURFACE,
-    TEXTOBJ
+    FMTTEXT
 };
 static inline bool ISOBJECT(enum CONT_TYPE type)
-{ return (type==CAMERA || type==SURFACE || type==TEXTOBJ); }
+{ return (type==CAMERA || type==SURFACE || type==FMTTEXT); }
 
 static enum CONT_TYPE get_type (const Container* c)
 {
@@ -253,9 +253,9 @@ static bool rodt_load (Container* rodt)
     {
         if(!process_container((Container*)c))
         {
-            mchar* message = errmsg+2000;
-            sprintf2(message, CST21("%s\r\n\r\nContinue loading?"), errmsg);
-            if(!wait_for_confirmation(CST21("Error"), message)) return false;
+            wchar* message = errmsg+2000;
+            sprintf2(message, L"%s\r\n\r\nContinue loading?", errmsg);
+            if(!wait_for_confirmation(L"Error", message)) return false;
         }
     }
     if(!set_user_message(rodt)) return false;
@@ -268,10 +268,10 @@ static Container* get_selected ()
 {
     lchar* path=NULL;
     astrcpy32(&path, userinterface_get_text(UI_PATH_TEXT));
-    set_line_coln_file(path, 1, 1, CST21("path name"));
+    set_line_coln_source(path, 1, 1, L"path name");
 
     Container* container = NULL;
-    if(path && path->mchr!=0 && path->mchr!='|')
+    if(path && path->wchr!=0 && path->wchr!='|')
         strcpy21(errmsg, "Error: path name must start with a '|'.");
     else container = container_find(NULL, path, errmsg, 0, true);
 
@@ -282,17 +282,17 @@ static Container* get_selected ()
 
 
 
-#define MAIN_ENTRY_NAME "entry"
+#define MAIN_ENTRY_NAME L"entry"
 static bool g_check = false;
 bool checkfail (const Container* c, const lchar* name)
 {
     if(!g_check) return false;
     g_check = false;
     if(name)
-    {   if(0!=strcmp31(name, MAIN_ENTRY_NAME))
+    {   if(0!=strcmp32(name, MAIN_ENTRY_NAME))
         {
-            sprintf2(errmsg, CST21("A new container:\r\n\"%s|%s\"\r\nwill be created."), container_path_name(c), CST23(name));
-            if(!wait_for_confirmation(CST21("Confirm to continue"), errmsg))
+            sprintf2(errmsg, L"A new container:\r\n\"%s|%s\"\r\nwill be created.", container_path_name(c), CST23(name));
+            if(!wait_for_confirmation(L"Confirm to continue", errmsg))
             { strcpy21(errmsg, "Container creation is cancelled."); return true; }
         }
     }
@@ -302,7 +302,7 @@ bool checkfail (const Container* c, const lchar* name)
 
 
 
-void tools_do_eval (const mchar* source)
+void tools_do_eval (const wchar* source)
 {
     wait_for_draw_to_finish();
     bool success = false;
@@ -325,7 +325,7 @@ void tools_do_eval (const mchar* source)
                 source = CST23(c_name(container));
             else if(file_exists_get())
                 source = get_name_from_path_name(NULL,file_name_get());
-            else source = CST21(MAIN_ENTRY_NAME);
+            else source = MAIN_ENTRY_NAME;
         }
         bool b = calculator_evaluate_main(source);
         g_check = false;
@@ -346,7 +346,7 @@ void tools_do_eval (const mchar* source)
         else if(container==curr_uidt && type!=UIDT)
         {
             strcpy21(errmsg, "Container is no more of type User Interface Definition Text (UIDT). The used UIDT will change back to the original. If this was not intended then provide a container name.");
-            wait_for_user_first(CST21("Warning"), errmsg);
+            wait_for_user_first(L"Warning", errmsg);
             tools_uidt_eval(Layout, base_uidt);
             main_window_resize();
         }
@@ -367,17 +367,17 @@ void tools_do_delete()
     if(!container) return;
 
     if(is_base(container))
-    { display_message(CST21("This container cannot be deleted.")); return; }
+    { display_message(L"This container cannot be deleted."); return; }
 
     if(container==curr_uidt)
     {
         strcpy21(errmsg, "Container of type User Interface Definition Text (UIDT) will be deleted. The used UIDT will change back to the original. Is that OK?");
-        if(!wait_for_confirmation(CST21("Warning"), errmsg)) return;
+        if(!wait_for_confirmation(L"Warning", errmsg)) return;
         tools_uidt_eval(Layout, base_uidt);
         main_window_resize();
     }
 
-    mchar* text = (mchar*)mainStack()+2000; // not errorMessage(), better use a local array!
+    wchar* text = (wchar*)mainStack()+2000; // not errorMessage(), better use a local array!
     strcpy23(text, c_mfet(container));
 
     if(ISOBJECT(get_type(container)))
@@ -452,13 +452,14 @@ void tools_do_clear()
 void tools_do_pause (bool pause)
 {
     timer_pause(pause);
-    userinterface_set_text(UI_PAUSE_BUTTON, CST21(pause ? TEXT_RESUME : TEXT_PAUSE));
+    const wchar* text = CST21(pause ? TEXT_RESUME : TEXT_PAUSE);
+    userinterface_set_text(UI_PAUSE_BUTTON, text);
 }
 
 static void time_reverse_set_text()
 {
-    const char* text = timer_get_period()<0 ? TEXT_FORWARD : TEXT_BACKWARD ;
-    userinterface_set_text (UI_FORWARD_BUTTON, CST21(text));
+    const wchar* text = CST21(timer_get_period()<0 ? TEXT_FORWARD : TEXT_BACKWARD);
+    userinterface_set_text(UI_FORWARD_BUTTON, text);
 }
 
 void tools_go_forward (bool forward)
@@ -497,7 +498,7 @@ void tools_lower_period()  { edit_period("lower_period"); }
 void tools_higher_period() { edit_period("higher_period"); }
 
 
-bool tools_set_time (const mchar* entry)
+bool tools_set_time (const wchar* entry)
 {
     if(!entry) entry = userinterface_get_text(UI_TIME_TEXT);
     while(true) // not a loop
@@ -545,7 +546,7 @@ void tools_remove_all_objects (bool ask_confirmation)
     wait_for_draw_to_finish();
     if(ask_confirmation)
     {
-        mchar title[50], message[50];
+        wchar title[50], message[50];
         strcpy21(title, "Confirm");
         strcpy21(message, "Remove All Objects?");
         if(!wait_for_confirmation(title, message)) return;
@@ -570,7 +571,7 @@ void tools_clean()
 
 
 
-static const mchar base_uidt_mfet[] = {
+static const wchar base_uidt_mfet[] = {
 #ifdef LIBRODT
    114,101,115,117,108,116, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 85,115,101,114, 95, 73,
    110,116,101,114,102, 97, 99,101, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
@@ -768,7 +769,7 @@ static const mchar base_uidt_mfet[] = {
 #endif
 };
 
-static const mchar base_rodt_rodt[] = {
+static const wchar base_rodt_rodt[] = {
     48, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 82,104,121,115, 99,105,116,108,101,109, 97,
     95, 79, 98,106,101, 99,116,115, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
     32, 59, 13, 10, 13, 10,112,114,105,118, 97,116,101, 13, 10,109,101,115,115, 97,103,101, 32, 61, 32,

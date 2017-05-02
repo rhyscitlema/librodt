@@ -13,8 +13,7 @@
 #define errormessage errorMessage()
 
 
-
-void display_main_text (const mchar* text)
+void display_main_text (const wchar* text)
 {
     if(text==NULL) text = userMessage();
     userinterface_set_text (UI_MAIN_TEXT, text);
@@ -22,23 +21,22 @@ void display_main_text (const mchar* text)
     mouse_clear_pointers(headMouse);
 }
 
-void display_message (const mchar* message)
+void display_message (const wchar* message)
 {
     puts2(message);
     userinterface_set_text (UI_MESG_TEXT, message);
 }
 
 
-
-static bool calculator_evaluate (const mchar* source, Container** mfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
+static bool calculator_evaluate (const wchar* source, Container** mfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
 {
     assert(mfet_ptr!=NULL);
     Container* mfet;
     if(source)
     {
-        const mchar* entry = userinterface_get_text(input);
+        const wchar* entry = userinterface_get_text(input);
         lchar* text=NULL; astrcpy32(&text, entry);
-        set_line_coln_file(text, 1, 1, source);
+        set_line_coln_source(text, 1, 1, source);
 
         mfet = (Container*)mfet_parse(*mfet_ptr, text); text=NULL;
         if(mfet)
@@ -68,12 +66,12 @@ static bool calculator_evaluate (const mchar* source, Container** mfet_ptr, enum
        Container* main_entry_mfet = NULL;
 static Container* calculator_mfet = NULL;
 
-bool calculator_evaluate_main (const mchar* source)
+bool calculator_evaluate_main (const wchar* source)
 { return calculator_evaluate (source, &main_entry_mfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
 
 bool calculator_evaluate_calc (bool parse)
-{ return calculator_evaluate ((parse ? CST21(TEXT_CALC) : NULL), &calculator_mfet, UI_CALC_INPUT, UI_CALC_RESULT); }
-
+{ const wchar* source = parse ? CST21(TEXT_CALC) : NULL;
+  return calculator_evaluate (source, &calculator_mfet, UI_CALC_INPUT, UI_CALC_RESULT); }
 
 
 void display_time_text()
@@ -139,7 +137,6 @@ static inline void mthread_signal_send (mthread_signal signal){}
 static inline void mthread_signal_wait (mthread_signal signal){}
 static inline void mthread_signal_free (mthread_signal signal){}
 #endif
-
 
 
 volatile int draw_request_count;
@@ -273,7 +270,7 @@ void userinterface__init()
 
 void userinterface__clean()
 {
-    threaded = false;
+    threaded = false; // set before sending signal
     mthread_signal_send(signal);
     // note: thread termination must be done first
     mthread_signal_free(signal);

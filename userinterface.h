@@ -7,6 +7,7 @@
 #include <structures.h>
 
 
+#define TEXT_EVAL "="
 #define TEXT_PREV "Prev"
 #define TEXT_NEXT "Next"
 #define TEXT_DELE "Dele"
@@ -33,10 +34,10 @@ enum UI_ITEM
 };
 
 
-//---- the below are provided by the platform ----
+/*** the below are provided by the platform ***/
 
-const mchar* userinterface_get_text (enum UI_ITEM ui_item);
-void userinterface_set_text (enum UI_ITEM ui_item, const mchar* text);
+const wchar* userinterface_get_text (enum UI_ITEM ui_item);
+void userinterface_set_text (enum UI_ITEM ui_item, const wchar* text);
 void userinterface_clean ();
 
 bool main_window_resize ();
@@ -47,22 +48,22 @@ extern int main_window_height;
 
 // also those from timer.h
 
-//---- the above are provided by the platform ----
+/*** the above are provided by the platform ***/
 
 
 void userinterface__init ();
 void userinterface__clean ();
 void wait_for_draw_to_finish ();
 
-void display_main_text (const mchar* text);
-void display_message (const mchar* message);
+void display_main_text (const wchar* text);
+void display_message (const wchar* message);
 void display_time_text();
-const mchar* userMessage();
+const wchar* userMessage();
 
 extern Container* main_entry_mfet;
 void select_container (Container* container);
 
-bool calculator_evaluate_main (const mchar* source);
+bool calculator_evaluate_main (const wchar* source);
 bool calculator_evaluate_calc (bool parse);
 void userinterface_update ();
 

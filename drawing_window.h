@@ -14,7 +14,7 @@ typedef void* DrawingWindow;
 
 extern DrawingWindow drawing_window_new ();
 
-extern void drawing_window_name   (DrawingWindow dw, const mchar* name);
+extern void drawing_window_name   (DrawingWindow dw, const wchar* name);
 
 extern void drawing_window_move   (DrawingWindow dw);
 

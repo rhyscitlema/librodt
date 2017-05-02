@@ -257,7 +257,7 @@ bool set_outsider (ExprCallArg eca)
         if(UserInputButtonStart < id && id < UserInputButtonStop)
             out[0] = setSmaInt((AUI && headMouse->Button[id]) ? 1 : 0);
 
-        else { set_message (eca.garg->message, CST21("Software Error: in \\1 at \\2:\\3:\r\nOn '\\4': outsider \\5 is unrecognised."), eca.expression->name, TIS2(0,id)); return 0; }
+        else { set_message (eca.garg->message, L"Software Error: in \\1 at \\2:\\3:\r\nOn '\\4': outsider \\5 is unrecognised.", eca.expression->name, TIS2(0,id)); return 0; }
     }
 
     valueSt_matrix_setSize (eca.stack, rows, cols);

@@ -80,9 +80,6 @@ bool surface_set (Container* container)
 
 
 
-
-
-
 #define CHECK_BOUNDARY(x,a,b,c) \
     while(true) /* not a loop */ \
     {   s=A[a][x]; \
@@ -101,8 +98,12 @@ bool surface_set (Container* container)
 
 #define LIM (1/(SmaFlt)(1<<10))
 
-// TODO: using (a==b) sometimes fails for an optimized compilation on Windows
+#ifndef _WINDOWS
+#define equal(a,b) (a==b)
+#else
+// using (a==b) sometimes fails for an optimized compilation on MinGW
 #define equal(a,b) (*(unsigned long long*)(&a) == *(unsigned long long*)(&b))
+#endif
 
 
 

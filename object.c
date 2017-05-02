@@ -8,15 +8,15 @@
 #include <object.h>
 #include <camera.h>
 #include <surface.h>
-#include <textobj.h>
+//#include <textobj.h>
 #include <userinterface.h>
 #include <tools.h>
 
 
-int object_find (void* key1, void* key2, void* arg)
+int object_find (const void* key1, const void* key2, const void* arg)
 {
-    Container* c1 = (Container*)key1;
-    Container* c2 = ((Object*)key2)->container;
+    const Container* c1 = (const Container*)key1;
+    const Container* c2 = ((const Object*)key2)->container;
     return ((c1 < c2) ? -1 : (c1 > c2) ? +1 : 0);
 }
 
@@ -94,7 +94,7 @@ void object_process (Object *obj, bool update)
     {
         eca.stack += stackSize()/2;
         eca.garg->message += stackSize()/2;
-        mchar* errmsg = eca.garg->message;
+        wchar* errmsg = eca.garg->message;
 
         if(!component_evaluate(eca, obj->origin_comp, VST31)
         || !floatFromVst (obj->position, eca.stack, 3, errmsg, "object position"))

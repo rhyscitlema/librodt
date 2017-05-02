@@ -35,7 +35,7 @@ typedef struct _Object
 } Object;
 
 
-int object_find (void* key1, void* key2, void* arg);
+int object_find (const void* key1, const void* key2, const void* arg);
 
 void object_process (Object *obj, bool update);
 
