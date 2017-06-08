@@ -20,13 +20,14 @@ bool user_input_allowed = false;
 enum OUTSIDER_ID
 {
     NONE = UserInputButtonStart, //==0
-    TIME = UserInputButtonStop,
+    ID_TRUE = UserInputButtonStop,
+    ID_FALSE,
+    ID_TIME,
     TimerPeriod,
+    MainWindowWidthHeight,
 
     PixelSize,
     MouseMotion,
-    MainWindowWidthHeight,
-
 	LocalPointedPixel,
 	LocalPointedPoint,
     CameraDistance,
@@ -51,9 +52,10 @@ enum OUTSIDER_ID
 /* Return outsider's ID > 0, else return 0. */
 unsigned int outsider_getID (const lchar* lstr)
 {
-    GOID ("time", TIME)
+    GOID ("true", ID_TRUE)
+    GOID ("false", ID_FALSE)
+    GOID ("time", ID_TIME)
     GOID ("TimerPeriod", TimerPeriod)
-
     GOID ("MainWindowWidthHeight", MainWindowWidthHeight)
 
     #ifdef LIBRODT
@@ -184,7 +186,9 @@ bool set_outsider (ExprCallArg eca)
     int id = GET_OUTSIDER_ID(eca.expression);
     switch(id)
     {
-    case TIME: out[0] = timer_get_time(); break;
+    case ID_TRUE: out[0] = setSmaInt(1); break;
+    case ID_FALSE: out[0] = setSmaInt(0); break;
+    case ID_TIME: out[0] = timer_get_time(); break;
     case TimerPeriod: out[0] = setSmaInt(timer_get_period()); break;
     case PixelSize: out[0] = setSmaFlt(PIXELSIZE); break;
 
@@ -261,6 +265,6 @@ bool set_outsider (ExprCallArg eca)
     }
 
     valueSt_matrix_setSize (eca.stack, rows, cols);
-    return 1;
+    return true;
 }
 
