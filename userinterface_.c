@@ -3,7 +3,7 @@
 */
 
 #include <_stdio.h>
-#include <mfet.h>
+#include <rfet.h>
 #include <timer.h>
 #include <tools.h>
 #include <mouse.h>
@@ -28,34 +28,34 @@ void display_message (const wchar* message)
 }
 
 
-static bool calculator_evaluate (const wchar* source, Container** mfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
+static bool calculator_evaluate (const wchar* source, Container** rfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
 {
-    assert(mfet_ptr!=NULL);
-    Container* mfet;
+    assert(rfet_ptr!=NULL);
+    Container* rfet;
     if(source)
     {
         const wchar* entry = userinterface_get_text(input);
         lchar* text=NULL; astrcpy32(&text, entry);
         set_line_coln_source(text, 1, 1, source);
 
-        mfet = (Container*)mfet_parse(*mfet_ptr, text); text=NULL;
-        if(mfet)
-        {   *mfet_ptr = mfet;
-            if(!mfet->owner)
-                mfet->owner = mfet_ptr;
+        rfet = (Container*)rfet_parse(*rfet_ptr, text); text=NULL;
+        if(rfet)
+        {   *rfet_ptr = rfet;
+            if(!rfet->owner)
+                rfet->owner = rfet_ptr;
         }
         else { userinterface_set_text(output, errormessage); return false; }
 
-        // skip mfet_evaluate(), as it will later
+        // skip rfet_evaluate(), as it will later
         // be called via calculator_evaluate_main(0);
         if(input==UI_MAIN_TEXT) return true;
     }
-    mfet = *mfet_ptr;
-    if(mfet != NULL)
+    rfet = *rfet_ptr;
+    if(rfet != NULL)
     {
-        if(mfet_evaluate(mfet,NULL,NULL))
-        {   if(mfet_commit_replacement(mfet))
-                userinterface_set_text(input, mfet_get_container_text(mfet));
+        if(rfet_evaluate(rfet,NULL,NULL))
+        {   if(rfet_commit_replacement(rfet))
+                userinterface_set_text(input, rfet_get_container_text(rfet));
             VstToStr(mainStack(), errormessage, 4, -1, -1, -1);
         }
         userinterface_set_text(output, errormessage);
@@ -63,15 +63,15 @@ static bool calculator_evaluate (const wchar* source, Container** mfet_ptr, enum
     return true;
 }
 
-       Container* main_entry_mfet = NULL;
-static Container* calculator_mfet = NULL;
+       Container* main_entry_rfet = NULL;
+static Container* calculator_rfet = NULL;
 
 bool calculator_evaluate_main (const wchar* source)
-{ return calculator_evaluate (source, &main_entry_mfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
+{ return calculator_evaluate (source, &main_entry_rfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
 
 bool calculator_evaluate_calc (bool parse)
 { const wchar* source = parse ? CST21(TEXT_CALC) : NULL;
-  return calculator_evaluate (source, &calculator_mfet, UI_CALC_INPUT, UI_CALC_RESULT); }
+  return calculator_evaluate (source, &calculator_rfet, UI_CALC_INPUT, UI_CALC_RESULT); }
 
 
 void display_time_text()

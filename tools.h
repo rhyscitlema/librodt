@@ -8,7 +8,7 @@
 
 extern bool tools_uidt_eval (int layout[][4], void* uidt);
 
-extern void tools_init (int stack_size, const wchar* uidt_mfet);
+extern void tools_init (int stack_size, const wchar* uidt_rfet);
 
 extern void tools_clean(); // to free memory, best called upon software exit
 

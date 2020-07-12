@@ -295,7 +295,7 @@ void drawing_window_close_do (DrawingWindow dw)
     wait_for_draw_to_finish();
     Object *camera = (Object*)findCameraFromDW(dw);
     assert(camera!=NULL);
-    if(camera->container) display_main_text(CST23(c_mfet(camera->container)));
+    if(camera->container) display_main_text(CST23(c_rfet(camera->container)));
     camera->destroy(camera);
 }
 

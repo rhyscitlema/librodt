@@ -60,7 +60,7 @@ void display_message (const wchar* message);
 void display_time_text();
 const wchar* userMessage();
 
-extern Container* main_entry_mfet;
+extern Container* main_entry_rfet;
 void select_container (Container* container);
 
 bool calculator_evaluate_main (const wchar* source);

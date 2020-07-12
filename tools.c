@@ -5,7 +5,7 @@
 #include <_stdio.h>
 #include <_texts.h>
 #include <files.h>
-#include <mfet.h>
+#include <rfet.h>
 #include <outsider.h>
 #include <userinterface.h>
 #include <surface.h>
@@ -27,7 +27,7 @@ static Container* base_rodt = NULL;
 static Container* base_uidt = NULL;
 static Container* curr_uidt = NULL;
 
-static const wchar base_uidt_mfet[];
+static const wchar base_uidt_rfet[];
 static const wchar base_rodt_rodt[];
 
 static const char* uidt_name[] = {
@@ -144,18 +144,18 @@ static bool set_user_message (Container* rodt)
 }
 
 
-void tools_init (int stack_size, const wchar* uidt_mfet)
+void tools_init (int stack_size, const wchar* uidt_rfet)
 {
     lchar* text=NULL;
     bool success;
 
     mouse_init();
-    mfet_init(stack_size);
+    rfet_init(stack_size);
 
     // 1) set BASE UIDT
-    if(!uidt_mfet || !uidt_mfet[0])
-        uidt_mfet = base_uidt_mfet;
-    astrcpy32(&text, uidt_mfet);
+    if(!uidt_rfet || !uidt_rfet[0])
+        uidt_rfet = base_uidt_rfet;
+    astrcpy32(&text, uidt_rfet);
     set_line_coln_source(text, 1, 1, L"UIDT");
 
     success=false;
@@ -173,7 +173,7 @@ void tools_init (int stack_size, const wchar* uidt_mfet)
     // 2) set BASE RODT
     astrcpy32(&text, base_rodt_rodt);
     set_line_coln_source(text, 1, 1, L"RODT");
-    base_rodt = (Container*)mfet_parse(NULL, text); text=NULL;
+    base_rodt = (Container*)rfet_parse(NULL, text); text=NULL;
     assert(base_rodt!=NULL);
     set_user_message(base_rodt);
 
@@ -316,7 +316,7 @@ void tools_do_eval (const wchar* source)
             obj = (Object*)container->owner;
 
         const lchar* name = c_name(container);
-        main_entry_mfet = name ? container : NULL;
+        main_entry_rfet = name ? container : NULL;
         // only the RootContainer has no name
 
         if(!source)
@@ -331,7 +331,7 @@ void tools_do_eval (const wchar* source)
         g_check = false;
         if(!b) break;
 
-        container = main_entry_mfet;
+        container = main_entry_rfet;
         if(!process_container(container)) break;
         select_container(container);
 
@@ -378,14 +378,14 @@ void tools_do_delete()
     }
 
     wchar* text = (wchar*)mainStack()+2000; // not errorMessage(), better use a local array!
-    strcpy23(text, c_mfet(container));
+    strcpy23(text, c_rfet(container));
 
     if(ISOBJECT(get_type(container)))
     {   Object* obj = (Object*)container->owner;
         if(!obj->destroy(obj)) return;
     } else if(!inherits_remove(container)) return;
 
-    main_entry_mfet = NULL;
+    main_entry_rfet = NULL;
     display_message(NULL);
     display_main_text(text);
 
@@ -397,8 +397,8 @@ void tools_do_delete()
 void select_container (Container* container)
 {
     if(!container) return;
-    const lchar* mfet = c_mfet(container);
-    assert(mfet!=NULL);
+    const lchar* rfet = c_rfet(container);
+    assert(rfet!=NULL);
 
     void* node = list_find(containers_list, NULL, pointer_compare, &container);
     assert(node!=NULL);
@@ -408,11 +408,11 @@ void select_container (Container* container)
     if(ISOBJECT(type))
     {
         Object* obj = (Object*)container->owner;
-        userinterface_set_text (UI_MAIN_TEXT, CST23(mfet));
+        userinterface_set_text (UI_MAIN_TEXT, CST23(rfet));
         headMouse->clickedObject = obj;
         if(type==CAMERA) headMouse->clickedCamera = (Camera*)obj;
     }
-    else display_main_text (CST23(mfet));
+    else display_main_text (CST23(rfet));
     userinterface_set_text(UI_PATH_TEXT, container_path_name(container));
     display_message(NULL);
 }
@@ -421,7 +421,7 @@ void tools_do_select()
 {
     Container* container = get_selected();
     if(!container) return;
-    if(c_mfet(container))
+    if(c_rfet(container))
         select_container(container);
     else display_main_text(NULL);
 }
@@ -442,7 +442,7 @@ void tools_get_next()
 
 void tools_do_clear()
 {
-    main_entry_mfet = NULL;
+    main_entry_rfet = NULL;
     userinterface_set_text(UI_MESG_TEXT, NULL);
     userinterface_set_text(UI_PATH_TEXT, NULL);
 }
@@ -503,7 +503,7 @@ bool tools_set_time (const wchar* entry)
     if(!entry) entry = userinterface_get_text(UI_TIME_TEXT);
     while(true) // not a loop
     {
-        const value* vst = mfet_parse_and_evaluate(entry, NULL, VST21);
+        const value* vst = rfet_parse_and_evaluate(entry, NULL, VST21);
         if(!vst) break;
 
         int period;
@@ -565,13 +565,13 @@ void tools_clean()
     userinterface__clean();
     userinterface_clean();
     mouse_clean();
-    mfet_clean();
-    mchar_free(usermessage); usermessage=NULL;
+    rfet_clean();
+    wchar_free(usermessage); usermessage=NULL;
 }
 
 
 
-static const wchar base_uidt_mfet[] = {
+static const wchar base_uidt_rfet[] = {
 #ifdef LIBRODT
    114,101,115,117,108,116, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 85,115,101,114, 95, 73,
    110,116,101,114,102, 97, 99,101, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
@@ -777,20 +777,20 @@ static const wchar base_rodt_rodt[] = {
    111,110, 32, 97, 32,103,114, 97,112,104, 13, 10, 13, 10, 32, 32, 32, 32, 32, 32,111,114, 32, 32,114,
    105,103,104,116, 45, 99,108,105, 99,107, 32,111,110, 32, 97, 32, 99, 97,109,101,114, 97, 13, 10, 13,
     10, 32, 77,111,114,101, 32, 97,116, 32,104,116,116,112, 58, 47, 47,114,104,121,115, 99,105,116,108,
-   101,109, 97, 46, 99,111,109, 47, 97,112,112,108,105, 99, 97,116,105,111,110,115, 13, 10, 34, 59, 13,
-    10, 13, 10,112,114,105,118, 97,116,101, 13, 10, 92,109,102,101,116,123, 48, 59, 13, 10, 32,110, 97,
-   109,101, 32, 61, 32, 34, 79, 98,106,101, 99,116, 34, 59, 13, 10, 32,111,114,105,103,105,110, 32, 61,
-    32, 32, 40, 48, 44, 48, 44, 48, 41, 32, 59, 13, 10, 32, 97,120,101,115, 32, 61, 32, 32, 40, 49, 44,
-    48, 44, 48, 41, 44, 40, 48, 44, 49, 44, 48, 41, 44, 40, 48, 44, 48, 44, 49, 41, 32, 59, 13, 10,125,
-    13, 10, 13, 10, 92,109,102,101,116,123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,
-   106,101, 99,116, 34, 59, 13, 10, 32,110, 97,109,101, 32, 61, 32, 34, 67, 97,109,101,114, 97, 34, 59,
-    13, 10, 32,114,101, 99,116, 97,110,103,108,101, 32, 61, 32,123, 48, 44, 48, 44, 52, 48, 48, 44, 51,
-    48, 48, 44, 48, 44, 48,125, 59, 13, 10, 32,122,111,111,109, 32, 61, 32, 32, 49, 59, 13, 10,125, 13,
-    10, 13, 10, 92,109,102,101,116,123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,106,
-   101, 99,116, 34, 59, 13, 10, 32,110, 97,109,101, 32, 61, 32, 34, 83,117,114,102, 97, 99,101, 34, 59,
-    13, 10, 32,102,117,110, 99,116,105,111,110, 40,120, 44,121, 44,122, 41, 32, 61, 32, 32, 48, 59, 13,
-    10, 32, 99,111,108,111,117,114, 40,120, 44,121, 44,122, 41, 32, 61, 32, 32, 40,120, 44,121, 44,122,
-    44, 49, 41, 59, 13, 10, 32, 98,111,117,110,100, 97,114,121, 32, 61, 32, 32,123, 48, 44, 49, 44, 48,
-    44, 49, 44, 48, 44, 49,125, 59, 13, 10, 32, 97, 99, 99,117,114, 97, 99,121, 32, 61, 32, 32, 49, 59,
-    13, 10,125, 13, 10, 13, 10, 0
+   101,109, 97, 46, 99,111,109, 47, 97,112,112,108,105, 99, 97,116,105,111,110,115, 47,103,114, 97,112,
+   104, 45,112,108,111,116,116,101,114, 45, 51,100, 13, 10, 34, 59, 13, 10, 13, 10,112,114,105,118, 97,
+   116,101, 13, 10, 92,114,102,101,116,123, 48, 59, 13, 10, 32,110, 97,109,101, 32, 61, 32, 34, 79, 98,
+   106,101, 99,116, 34, 59, 13, 10, 32,111,114,105,103,105,110, 32, 61, 32, 32, 40, 48, 44, 48, 44, 48,
+    41, 32, 59, 13, 10, 32, 97,120,101,115, 32, 61, 32, 32, 40, 49, 44, 48, 44, 48, 41, 44, 40, 48, 44,
+    49, 44, 48, 41, 44, 40, 48, 44, 48, 44, 49, 41, 32, 59, 13, 10,125, 13, 10, 13, 10, 92,114,102,101,
+   116,123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,106,101, 99,116, 34, 59, 13, 10,
+    32,110, 97,109,101, 32, 61, 32, 34, 67, 97,109,101,114, 97, 34, 59, 13, 10, 32,114,101, 99,116, 97,
+   110,103,108,101, 32, 61, 32,123, 48, 44, 48, 44, 52, 48, 48, 44, 51, 48, 48, 44, 48, 44, 48,125, 59,
+    13, 10, 32,122,111,111,109, 32, 61, 32, 32, 49, 59, 13, 10,125, 13, 10, 13, 10, 92,114,102,101,116,
+   123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,106,101, 99,116, 34, 59, 13, 10, 32,
+   110, 97,109,101, 32, 61, 32, 34, 83,117,114,102, 97, 99,101, 34, 59, 13, 10, 32,102,117,110, 99,116,
+   105,111,110, 40,120, 44,121, 44,122, 41, 32, 61, 32, 32, 48, 59, 13, 10, 32, 99,111,108,111,117,114,
+    40,120, 44,121, 44,122, 41, 32, 61, 32, 32,123,120, 44,121, 44,122, 44, 49,125, 59, 13, 10, 32, 98,
+   111,117,110,100, 97,114,121, 32, 61, 32, 32,123, 48, 44, 49, 44, 48, 44, 49, 44, 48, 44, 49,125, 59,
+    13, 10, 32, 97, 99, 99,117,114, 97, 99,121, 32, 61, 32, 32, 49, 59, 13, 10,125, 13, 10, 0
 };

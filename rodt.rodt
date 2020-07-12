@@ -8,24 +8,24 @@ message = "
 
       or  right-click on a camera
 
- More at http://rhyscitlema.com/applications
+ More at http://rhyscitlema.com/applications/graph-plotter-3d
 ";
 
 private
-\mfet{0;
+\rfet{0;
  name = "Object";
  origin =  (0,0,0) ;
  axes =  (1,0,0),(0,1,0),(0,0,1) ;
 }
 
-\mfet{0;
+\rfet{0;
  type = "Object";
  name = "Camera";
  rectangle = {0,0,400,300,0,0};
  zoom =  1;
 }
 
-\mfet{0;
+\rfet{0;
  type = "Object";
  name = "Surface";
  function(x,y,z) =  0;

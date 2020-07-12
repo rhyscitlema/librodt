@@ -3,7 +3,7 @@
 # http://rhyscitlema.com/applications/makefile.html
 #
 # UIDT => User Interface Definition Text
-# RODT => Rhyscitlema Object Definition Text
+# RODT => Rhyscitlema Objects Definition Text
 
 UIDT_OUT_FILE = libuidt.a
 RODT_OUT_FILE = librodt.a
@@ -21,7 +21,7 @@ RODT_OBJ_FILES = object.o \
 
 LIBALGO = ../algorithms
 LIB_STD = ../lib_std
-LIBMFET = ../libmfet
+LIBRFET = ../librfet
 LIBRODT = .
 LIBRWIF = ../read_write_image_file
 
@@ -36,7 +36,7 @@ AR = ar
 # compiler flags
 CC_FLAGS = -I$(LIBALGO) \
            -I$(LIB_STD) \
-           -I$(LIBMFET) \
+           -I$(LIBRFET) \
            -I$(LIBRODT) \
            -I$(LIBRWIF) \
            -Wall \
@@ -68,7 +68,7 @@ clean:
 
 INCLUDE_FILES = $(LIBALGO)/*.h \
                 $(LIB_STD)/*.h \
-                $(LIBMFET)/*.h \
+                $(LIBRFET)/*.h \
                 $(LIBRODT)/*.h \
                 $(LIBRWIF)/*.h
 
