@@ -64,13 +64,8 @@ void mouse_clean ()
 
 static Object *camera_get_object (Camera *camera, int x, int y)
 {
-    PixelObject* PO;
-    if(camera == NULL) return NULL;
-    if(PixelInCamera(camera, x, y))
-    {
-        PO = camera->pixelObject [y * camera->XSize + x];
-        if(PO) return PO->object;
-    }
+    if(camera && PixelInCamera(camera, x, y))
+        return camera->pixelObject[y * camera->XSize + x].object;
     return NULL;
 }
 
@@ -145,7 +140,8 @@ bool on_mouse_event (int px, int py, int dz, int button, enum BUTTON_STATE state
     m->previousPosition[1] = m->currentPosition[1];
     m->previousPosition[2] = m->currentPosition[2];
 
-    if(state != BUTTON_SAME)
+    if(state == BUTTON_SAME) m->moved = true;
+    else
     {   m->buttonPressed = true;
         bool pressed = (state == BUTTON_PRESS);
         m->Button[Mouse_Left]   = (button & 0x1) && pressed;

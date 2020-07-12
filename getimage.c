@@ -82,7 +82,7 @@ value get_image_width_height (value v)
 
 
 static long getLong (value v, const_value n)
-{ return getSmaInt(vPrev(_floor(setRef(v,n)))); }
+{ return getSmaInt(vPrev(toInt(setRef(v,n)))); }
 
 value get_image_pixel_colour (value v)
 {

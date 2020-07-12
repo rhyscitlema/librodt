@@ -18,7 +18,7 @@
 
 const_Str2 argv[3];
 
-uint32_t PixelsPUL;
+uint32_t PixelsPUL; // Pixels Per Unit Length
 
 static Container* base_surface = NULL;
 static Container* base_camera = NULL;
@@ -70,6 +70,7 @@ bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
 {
     if(!curr_uidt) curr_uidt = base_uidt;
     Container* uidt = (Container*)_uidt;
+
     if(!uidt) uidt = curr_uidt;
     evaluation_instance(true);
 
@@ -78,10 +79,10 @@ bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
     for(i=0; i < uidt_count; i++)
         if(!do_uidt_eval(stack, uidt, layout[i], 4, uidt_name[i])) break;
 
-    while(i==uidt_count // if there was no error
-        && _uidt!=NULL) // if checking for error
+    if(i==uidt_count // if there was no error
+    && _uidt!=NULL)  // if checking for error
     {
-    // NOTE: not a loop
+    do{
         i=0; // assume an error
 
         if(!do_uidt_eval(stack, uidt, NULL, 1, "lower_period")) break;
@@ -94,7 +95,7 @@ bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
         i=uidt_count; // no error found
         curr_uidt = uidt;
         uidt->owner = &curr_uidt;
-    break;
+    }while(0);
     }
     return (i==uidt_count);
 }
@@ -180,9 +181,10 @@ enum RFET_TYPE {
     RFET_GLOBAL
 };
 static inline bool ISOBJECT(enum RFET_TYPE type)
-{ return ( type==RFET_CAMERA
+{ return
+        (  type==RFET_CAMERA
         || type==RFET_SURFACE
-        || type==RFET_DOCUMENT);
+        || type==RFET_DOCUMENT );
 }
 
 static enum RFET_TYPE get_type (const Container* c)
@@ -192,9 +194,9 @@ static enum RFET_TYPE get_type (const Container* c)
         return RFET_GLOBAL;
     for( ; c!=NULL; c = c_type(c))
     {
-        if(c==base_uidt) return RFET_UIDT;
-        if(c==base_rodt) return RFET_RODT;
-        if(c==base_camera) return RFET_CAMERA;
+        if(c==base_uidt)    return RFET_UIDT;
+        if(c==base_rodt)    return RFET_RODT;
+        if(c==base_camera)  return RFET_CAMERA;
         if(c==base_surface) return RFET_SURFACE;
     }
     return RFET_OTHER;
@@ -203,12 +205,13 @@ static enum RFET_TYPE get_type (const Container* c)
 
 static inline bool is_base (const Container* c)
 {
-    return (c==base_uidt
-         || c==base_rodt
-         || c==base_object
-         || c==base_camera
-         || c==base_surface
-         || c->parent==NULL);
+    return
+        (  c==base_uidt
+        || c==base_rodt
+        || c==base_object
+        || c==base_camera
+        || c==base_surface
+        || c->parent==NULL );
 }
 
 
@@ -281,7 +284,8 @@ bool checkfail (value stack, const Container* c, const_Str3 name, bool hasType, 
     bool isentry = 0==strcmp32(name, MAIN_ENTRY_NAME);
 
     if(isentry && hasType)
-    {   setError(stack, L"Provide a container name different from \"entry\".");
+    {
+        setError(stack, L"Provide a container name different from \"entry\".");
         wait_for_user_first(L"Error", getMessage(stack));
         return true;
     }
@@ -293,8 +297,8 @@ bool checkfail (value stack, const Container* c, const_Str3 name, bool hasType, 
         value v = vnext(stack);
         setMessage(v, 0, 3, argv);
 
-        if(!wait_for_confirmation(L"Confirm to continue", getMessage(v)))
-        {   setError(stack, L"Container creation cancelled.");
+        if(!wait_for_confirmation(L"Confirm to continue", getMessage(v))) {
+            setError(stack, L"Container creation cancelled.");
             return true;
         }
     }
@@ -313,8 +317,7 @@ void tools_do_eval (const wchar* source)
     wait_for_draw_to_finish();
     value stack = stackArray();
     bool success = false;
-    while(true) // not a loop
-    {
+    do{
         Container* container = get_selected(stack);
         if(container==NULL) break;
 
@@ -352,7 +355,7 @@ void tools_do_eval (const wchar* source)
             assert(obj->container == container);
             obj->container->owner = NULL;
             obj->container = NULL;
-            obj->destroy(obj); // TODO: no, better send error message and tell user to use explicit deletion instead
+            obj->destroy(obj); // TODO: NO, better send error message and tell user to use explicit deletion instead
         }
         else if(container==curr_uidt && type!=RFET_UIDT)
         {
@@ -364,8 +367,7 @@ void tools_do_eval (const wchar* source)
         success = true;
         setBool(stack, true);
         userinterface_update();
-        break;
-    }
+    }while(0);
     if(!success) display_message(getMessage(vGet(stack)));
 }
 
@@ -393,9 +395,11 @@ void tools_do_delete ()
     const wchar* text = getStr2(stack);
 
     if(ISOBJECT(get_type(container)))
-    {   Object* obj = (Object*)container->owner;
+    {
+        Object* obj = (Object*)container->owner;
         if(!obj->destroy(obj)) return;
-    } else if(!inherits_remove(container)) return;
+    }
+    else if(!inherits_remove(container)) return;
 
     main_entry_rfet = NULL;
     display_message(NULL);
@@ -506,8 +510,8 @@ static void edit_period (const char* name)
     stack = timer_set_period(stack);
     if(VERROR(stack))
         display_message(getMessage(vGetPrev(stack)));
-    else
-    {   time_reverse_set_text();
+    else{
+        time_reverse_set_text();
         display_time_text();
     }
 }
@@ -520,8 +524,7 @@ bool tools_set_time (const wchar* entry)
     value stack = stackArray();
     if(!entry) entry = userinterface_get_text(UI_TIME_TEXT);
     bool success=false;
-    while(true) // not a loop
-    {
+    do{
         stack = rfet_parse_and_evaluate(stack, entry, L"set_time", NULL);
         if(VERROR(stack)) break;
 
@@ -544,8 +547,7 @@ bool tools_set_time (const wchar* entry)
 
         success=true;
         stack = setBool(stack, true);
-        break;
-    }
+    }while(0);
     if(!success) display_message(getMessage(vGetPrev(stack)));
     return success;
 }
@@ -773,7 +775,7 @@ static const wchar base_rodt_rodt[] =
     "\r\n"
     "      or  right-click on a camera\r\n"
     "\r\n"
-    " More at http://rhyscitlema.com/applications/graph-plotter-3d\r\n"
+    " http://rhyscitlema.com/applications/graph-plotter-3d\r\n"
     "\";\r\n"
     "\r\n"
     "private\r\n"

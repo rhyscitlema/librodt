@@ -79,9 +79,9 @@ int outsider_getID (const_Str3 str)
     GOID("Key_Ctrl"       , Key_Ctrl)
     GOID("Key_Ctrl_Left"  , Key_Ctrl_Left)
     GOID("Key_Ctrl_Right" , Key_Ctrl_Right)
-  //GOID("Key_Alt"        , Key_Alt)
-  //GOID("Key_Alt_Left"   , Key_Alt_Left)
-  //GOID("Key_Alt_Right"  , Key_Alt_Right)
+    //GOID("Key_Alt"        , Key_Alt)
+    //GOID("Key_Alt_Left"   , Key_Alt_Left)
+    //GOID("Key_Alt_Right"  , Key_Alt_Right)
     GOID("Key_Shift"      , Key_Shift)
     GOID("Key_Shift_Left" , Key_Shift_Left)
     GOID("Key_Shift_Right", Key_Shift_Right)
@@ -185,17 +185,13 @@ static value getPoint (value v, const Camera* cmr)
 {
     int i  = headMouse->currentPosition[0];
     int j  = headMouse->currentPosition[1];
-
-    while(true) // not a loop
-    {
-        if(cmr==NULL || cmr->pixelObject==NULL || !PixelInCamera(cmr, i, j)) break;
-
+    do{
+        if(cmr==NULL || !PixelInCamera(cmr, i, j)) break;
         i = j * cmr->XSize + i;
-        if(!cmr->pixelObject[i]) break;
-
-        return floatToValue(v, 3, 1, cmr->pixelObject[i]->point);
-    }
-    return v = vcopy(v, VST31); // set to zero
+        if(cmr->pixelObject[i].object==NULL) break;
+        return floatToValue(v, 3, 1, cmr->pixelObject[i].point);
+    }while(0);
+    return vcopy(v, VST31); // set to zero
 }
 #endif
 
@@ -231,7 +227,7 @@ value set_outsider (value v, int ID)
         break;
 
     case PointedPoint: return getPoint(v, headMouse->pointedCamera);
-  //case FocusedPoint: return getPoint(v, headMouse->clickedCamera); // must save FocusedPoint
+    //case FocusedPoint: return getPoint(v, headMouse->clickedCamera); // must save FocusedPoint
 
     case MouseMotion:
         b = !AUI;

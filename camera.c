@@ -2,7 +2,6 @@
     camera.c
 */
 
-#include <_stdio.h>     // for sprintf1() only
 #include <_malloc.h>
 #include <mouse.h>
 #include <timer.h>
@@ -18,93 +17,45 @@ List* camera_list() { return &_camera_list; }
 void camera_paint_initialise (Camera *camera)
 {
     if(!camera) return;
-    int i, size = camera->XSize * camera->YSize;
-    for(i=0; i<size; i++)
-    {
-        PixelObject *po, *next;
-        po = camera->pixelObject[i];
-        for( ; po != NULL; po = next)
-        {
-            next = po->next;
-            _free(po, "PixelObject");
-        }
-        camera->pixelObject[i] = NULL;
-    }
+    PixelObject* PO = camera->pixelObject;
+    PixelObject* end = PO + camera->XSize * camera->YSize;
+    for( ; PO!=end; PO++) PO->object = NULL;
 }
 
 
 
-bool camera_putpixel (Camera *camera, int pixel, const PixelObject* pixelObject)
+bool camera_putpixel (PixelObject *pObj, const PixelObject PO)
 {
-    PixelObject *PO, *prev, *next;
-    assert(camera!=NULL);
+    if(!PO.colour[0]
+    && !PO.colour[1]
+    && !PO.colour[2]
+    && !PO.colour[3]) return false;
 
-    const SmaFlt* colour = pixelObject->colour;
-    if(!colour[0]
-    && !colour[1]
-    && !colour[2]
-    && !colour[3]) return false;
-
-    next = camera->pixelObject[pixel];
-    prev = NULL;
-    while(next!=NULL && next->distance <  pixelObject->distance)
-    {
-        SmaFlt v = next->colour[3]; // get opacity
-        if(v==1) return true;
-        prev = next;
-        next = next->next;
-    }
-
-    PO = _malloc(sizeof(PixelObject), "PixelObject");
-    *PO = *pixelObject;
-    if(prev==NULL) camera->pixelObject[pixel] = PO;
-    else prev->next = PO;
-    PO->next = next;
-
-    SmaFlt v = PO->colour[3]; // get opacity
-    return v==1;
+    if(!pObj->object || pObj->distance > PO.distance)
+        *pObj = PO;
+    return true;
 }
 
 
-
-static inline int Flt2Int (SmaFlt n) { return (int)(n + ((n>=0) ? +0.000001 : -0.000001)); } // TODO: put this in _floor() or toInt()
 
 void camera_paint_finalise (Camera *camera)
 {
-    int i, j;
-    SmaFlt v;
-    SmaFlt bg[4];
-    const SmaFlt* fg;
-    const PixelObject *PO, *ARR[100];
     if(!camera) return;
-
-    for(i=0; i < camera->XSize * camera->YSize; i++)
+    int* PC = camera->pixelColour;
+    const int* end = PC + camera->XSize * camera->YSize;
+    const PixelObject* PO = camera->pixelObject;
+    for( ; PC!=end; PC++, PO++)
     {
-        PO = camera->pixelObject[i];
-        if(PO==NULL) { camera->pixelColour[i]=0; continue; }
-
-        for(j=0; PO != NULL; PO = PO->next) ARR[j++] = PO;
-
-            fg = ARR[--j]->colour;
-            bg[0] = fg[0] * fg[3];
-            bg[1] = fg[1] * fg[3];
-            bg[2] = fg[2] * fg[3];
-            bg[3] =         fg[3];
-
-        while(j>0)
+        int col;
+        if(PO->object)
         {
-            fg = ARR[--j]->colour;
-            v = (1 - fg[3]);
-            bg[0] = fg[0] * fg[3] + bg[0] * bg[3] * v;
-            bg[1] = fg[1] * fg[3] + bg[1] * bg[3] * v;
-            bg[2] = fg[2] * fg[3] + bg[2] * bg[3] * v;
-            bg[3] =         fg[3] +         bg[3] * v;
+            col = (( (int)FltToInt(PO->colour[0] * 0xFF) & 0xFF) <<  0)
+                + (( (int)FltToInt(PO->colour[1] * 0xFF) & 0xFF) <<  8)
+                + (( (int)FltToInt(PO->colour[2] * 0xFF) & 0xFF) << 16)
+                + (( (int)FltToInt(PO->colour[3] * 0xFF) & 0xFF) << 24);
         }
-        v = 0xFF;
-        camera->pixelColour[i] = (( (int)Flt2Int(bg[0] * v) & 0xFF) <<  0)
-                               + (( (int)Flt2Int(bg[1] * v) & 0xFF) <<  8)
-                               + (( (int)Flt2Int(bg[2] * v) & 0xFF) << 16)
-                               + (( (int)Flt2Int(bg[3] * v) & 0xFF) << 24);
+        else col=0;
+        *PC = col;
     }
     drawing_window_draw (camera->drawing_window);
 }
@@ -113,18 +64,12 @@ void camera_paint_finalise (Camera *camera)
 
 static void cameraSizeChange (Camera *camera, int XSize, int YSize)
 {
-    long size = (XSize * YSize) * (sizeof(int) + sizeof(PixelObject*))
-              + (XSize + YSize) * (sizeof(int) + sizeof(SmaFlt)*3);
-
     if(camera==NULL || (camera->XSize==XSize && camera->YSize==YSize)) return;
     camera_paint_initialise(camera);
 
+    long size = (XSize * YSize) * (sizeof(int) + sizeof(PixelObject));
     camera->pixelColour = (int*) _realloc (camera->pixelColour , size, "cameraSize");
-    camera->pixelObject = (PixelObject**) (camera->pixelColour + XSize*YSize);
-    camera->storeX      = (SmaFlt (*)[3]) (camera->pixelObject + XSize*YSize);
-    camera->storeY      = (SmaFlt (*)[3]) (camera->storeX      + XSize);
-    camera->checkX      = (int*)          (camera->storeY      + YSize);
-    camera->checkY      = (int*)          (camera->checkX      + XSize);
+    camera->pixelObject = (PixelObject*) (camera->pixelColour + XSize*YSize);
 
     memset(camera->pixelColour, 0, size);
     camera->XSize = XSize;
@@ -164,10 +109,10 @@ static void camera_process (Object *obj, bool update)
         if(!floatFromValue(v, 6, 1, obj->boundary, "camera rectangle"))
             display_message(getMessage(stack));
     }
-    XPost = Flt2Int(obj->boundary[0]);
-    YPost = Flt2Int(obj->boundary[1]);
-    XSize = Flt2Int(obj->boundary[2]);
-    YSize = Flt2Int(obj->boundary[3]);
+    XPost = (int)FltToInt(obj->boundary[0]);
+    YPost = (int)FltToInt(obj->boundary[1]);
+    XSize = (int)FltToInt(obj->boundary[2]);
+    YSize = (int)FltToInt(obj->boundary[3]);
 
     if(XSize<0 || XSize>10000 || YSize<0 || YSize>10000)
     {

@@ -35,11 +35,24 @@ typedef struct _Object
 } Object;
 
 
+typedef struct _ObjectPaint
+{   Object *obj;
+    void *camera;
+    char *checkX;
+    char *checkY;
+    SmaFlt (*X)[3];
+    SmaFlt (*Y)[3];
+    SmaFlt origin[3];
+    SmaFlt axes[3][3];
+    value stack;
+} ObjectPaint;
+
+
 int object_find (const void* key1, const void* key2, const void* arg);
 
 void object_process (Object *obj, bool update);
 
-void object_paint (Object *obj, void* camera, bool (*shootPixel) (Object *obj, void* camera, int xp, int yp));
+void object_paint (Object *obj, void* camera, bool (*shootPixel) (ObjectPaint op, int xp, int yp));
 
 
 #define setvector(out,x,y,z) { (out)[0]=x; (out)[1]=y; (out)[2]=z; }
@@ -65,16 +78,12 @@ void object_paint (Object *obj, void* camera, bool (*shootPixel) (Object *obj, v
 }
 
 
-#define CHECK_COMPONENT(comp, component, args, rvst) \
-{   assert(comp!=NULL); \
+#define GET_COMPONENT(comp_name, component, args, rvst) \
+{   comp = component_find(stack, container, C31(comp_name), 0); \
+    assert(comp!=NULL); \
     comp = component_parse(stack, comp); \
     if(VERROR(component_evaluate(stack, container, comp, args))) return false; \
     component = comp; \
-}
-
-#define GET_COMPONENT(comp_name, component, args, rvst) \
-{   comp = component_find(stack, container, C31(comp_name), 0); \
-    CHECK_COMPONENT(comp, component, args, rvst) \
 }
 
 

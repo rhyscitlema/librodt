@@ -12,7 +12,7 @@ static List _surface_list = {0};
 List* surface_list() { return &_surface_list; }
 
 
-static bool surface_shootPixel (Object *obj, void* camera, int xp, int yp);
+static bool surface_shootPixel (ObjectPaint op, int xp, int yp);
 
 static void surface_paint (Object *obj, void *camera)
 { object_paint(obj, camera, surface_shootPixel); }
@@ -75,19 +75,18 @@ bool surface_set (value stack, Container* container)
 
 
 #define CHECK_BOUNDARY(x,a,b,c) \
-    while(true) /* not a loop */ \
-    {   s=A[a][x]; \
+    do{ \
+        s=A[a][x]; \
         if(cmrPixelDir[b]<0) { if(A[b][0]<s || s<A[b][1]) break; } else { if(A[b][0]>s || s>A[b][1]) break; } \
         if(cmrPixelDir[c]<0) { if(A[c][0]<s || s<A[c][1]) break; } else { if(A[c][0]>s || s>A[c][1]) break; } \
         if(s<t) { u=t; t=s; } else u=s; \
-        break; \
-    }
+    }while(0);
 
 #define ComputeFOFT \
-    PO.point[0] = cmrPosition[0] + t * cmrPixelDir[0]; \
-    PO.point[1] = cmrPosition[1] + t * cmrPixelDir[1]; \
-    PO.point[2] = cmrPosition[2] + t * cmrPixelDir[2]; \
-    v = stack; \
+    PO.point[0] = op.origin[0] + t * cmrPixelDir[0]; \
+    PO.point[1] = op.origin[1] + t * cmrPixelDir[1]; \
+    PO.point[2] = op.origin[2] + t * cmrPixelDir[2]; \
+    v = op.stack+1; \
     v = setSmaFlt(v, PO.point[0]); \
     v = setSmaFlt(v, PO.point[1]); \
     v = setSmaFlt(v, PO.point[2]); \
@@ -99,84 +98,66 @@ bool surface_set (value stack, Container* container)
 
 #ifdef WIN32
 // using (a==b) sometimes fails for an optimized compilation on MinGW
-#define equal(a,b) (*(unsigned long long*)(&a) == *(unsigned long long*)(&b))
+#define equal(a,b) (*(uint64_t*)(&a) == *(uint64_t*)(&b))
 #else
 #define equal(a,b) (a==b)
 #endif
 
 
-static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
+static bool surface_shootPixel (ObjectPaint op, int xp, int yp)
 {
     bool i;
-    int pixel;
     SmaFlt s, t, u;
     SmaFlt prev, f_of_t, low, high;
 
-    SmaFlt *Sx, *Sy;
+    SmaFlt *bdr;
     SmaFlt A[3][2];
-    SmaFlt* cmrPosition;     // the position vector (a,b,c) on the pixel line
     SmaFlt cmrPixelDir[3];   // the direction vector (d,e,f) of the pixel line
+    Object* obj = op.obj;
+    Camera* cmr = (Camera*)op.camera;
 
-    Surface *surface = (Surface*)obj;
-    Camera *cmr = (Camera*)camera;
-    SmaFlt zoom = *cmr->obj.variable;
-
-    if(!PixelInCamera(cmr,xp,yp)) return 0;
-    pixel = yp * cmr->XSize + xp;
-    if(cmr->pixelObject[pixel]!=NULL && cmr->pixelObject[pixel]->object == obj) return 1;
+    if(!PixelInCamera(cmr,xp,yp)) { return 0; }
+    PixelObject *pObj = &cmr->pixelObject[yp * cmr->XSize + xp];
+    if(pObj->object == obj) return 1;
 
     PixelObject PO = {0};
     PO.object = obj;
 
-    const_value oper_function = c_oper(surface->function);
-    const_value oper_colour   = c_oper(surface->colour);
-    uint32_t stack[100000];
-    value v = stack;
-    value P = stack + 5*3 + 2*3;
+    value v, P = op.stack+2 + 4*3 + 2*3; // see object_paint()
+    const_value oper_function = c_oper(((Surface*)obj)->function);
+    const_value oper_colour   = c_oper(((Surface*)obj)->colour);
 
-    SetPtr(P-(0+1)*2, v); v = setSmaFlt(v, PO.point[0]);
-    SetPtr(P-(1+1)*2, v); v = setSmaFlt(v, PO.point[1]);
-    SetPtr(P-(2+1)*2, v); v = setSmaFlt(v, PO.point[2]);
-    memset(P, 0, sizeof(OperEval));
-    P[0] = 3;
-    P[1] = ~0;
-    SetPtr(P+6, surface->obj.container); // set caller container
-
-
-    Sx = cmr->storeX[xp];
-    Sy = cmr->storeY[yp];
-
-    if(cmr->checkX[xp] != cmr->check)
+    if(!op.checkX[xp])
     {
-        cmr->checkX[xp] = cmr->check;
-        s = PixelToPointX(xp,cmr);
-        Sx[0] = cmr->paintAxes[0][0]*s;
-        Sx[1] = cmr->paintAxes[1][0]*s;
-        Sx[2] = cmr->paintAxes[2][0]*s;
+        op.checkX[xp] = 1;
+        s = PixelToPointX(xp, cmr);
+        op.X[xp][0] = op.axes[0][0]*s;
+        op.X[xp][1] = op.axes[1][0]*s;
+        op.X[xp][2] = op.axes[2][0]*s;
     }
 
-    if(cmr->checkY[yp] != cmr->check)
+    if(!op.checkY[yp])
     {
-        cmr->checkY[yp] = cmr->check;
-        s = PixelToPointY(yp,cmr);
-        Sy[0] = cmr->paintAxes[0][1]*s + cmr->paintAxes[0][2]*zoom;
-        Sy[1] = cmr->paintAxes[1][1]*s + cmr->paintAxes[1][2]*zoom;
-        Sy[2] = cmr->paintAxes[2][1]*s + cmr->paintAxes[2][2]*zoom;
+        op.checkY[yp] = 1;
+        s = PixelToPointY(yp, cmr);
+        u = *cmr->obj.variable; // get zoom
+        op.Y[yp][0] = op.axes[0][1]*s + op.axes[0][2]*u;
+        op.Y[yp][1] = op.axes[1][1]*s + op.axes[1][2]*u;
+        op.Y[yp][2] = op.axes[2][1]*s + op.axes[2][2]*u;
     }
 
-    cmrPixelDir[0] = Sx[0] + Sy[0] + 0; // zero added
-    cmrPixelDir[1] = Sx[1] + Sy[1] + 0; // so to change
-    cmrPixelDir[2] = Sx[2] + Sy[2] + 0; // -0.0 to 0.0
+    cmrPixelDir[0] = op.X[xp][0] + op.Y[yp][0] + 0; // zero added
+    cmrPixelDir[1] = op.X[xp][1] + op.Y[yp][1] + 0; // so to change
+    cmrPixelDir[2] = op.X[xp][2] + op.Y[yp][2] + 0; // -0.0 to 0.0
 
 
-    cmrPosition = cmr->paintPost;
-    Sy = obj->boundary;
-    A[0][0] = (Sy[0] - cmrPosition[0]) / cmrPixelDir[0];
-    A[0][1] = (Sy[1] - cmrPosition[0]) / cmrPixelDir[0];
-    A[1][0] = (Sy[2] - cmrPosition[1]) / cmrPixelDir[1];
-    A[1][1] = (Sy[3] - cmrPosition[1]) / cmrPixelDir[1];
-    A[2][0] = (Sy[4] - cmrPosition[2]) / cmrPixelDir[2];
-    A[2][1] = (Sy[5] - cmrPosition[2]) / cmrPixelDir[2];
+    bdr = obj->boundary;
+    A[0][0] = (bdr[0] - op.origin[0]) / cmrPixelDir[0];
+    A[0][1] = (bdr[1] - op.origin[0]) / cmrPixelDir[0];
+    A[1][0] = (bdr[2] - op.origin[1]) / cmrPixelDir[1];
+    A[1][1] = (bdr[3] - op.origin[1]) / cmrPixelDir[1];
+    A[2][0] = (bdr[4] - op.origin[2]) / cmrPixelDir[2];
+    A[2][1] = (bdr[5] - op.origin[2]) / cmrPixelDir[2];
     t = u = WORLD_LIMIT;
     CHECK_BOUNDARY(0,0,1,2)
     CHECK_BOUNDARY(1,0,1,2)
@@ -187,43 +168,41 @@ static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
     if(u >= WORLD_LIMIT) return 0;
     if(t<1) t=1;
 
-
     /* code below is to profile computation time of boundary box */
-    /*
-    PO.distance  = t;
-    PO.point[0]  = cmrPosition[0] + t * cmrPixelDir[0];
-    PO.point[1]  = cmrPosition[1] + t * cmrPixelDir[1];
-    PO.point[2]  = cmrPosition[2] + t * cmrPixelDir[2];
-    PO.colour[0] = setSmaFlt(PO.point[0]/(Sy[1]-Sy[0]));
-    PO.colour[1] = setSmaFlt(PO.point[1]/(Sy[3]-Sy[2]));
-    PO.colour[2] = setSmaFlt(PO.point[2]/(Sy[5]-Sy[4]));
-    PO.colour[3] = setSmaInt(1);
-    camera_putpixel(cmr, pixel, &PO);
-    if(obj) return 1; // always executes
-    */
+    /*PO.distance  = t;
+    PO.point[0]  = op.origin[0] + t * cmrPixelDir[0];
+    PO.point[1]  = op.origin[1] + t * cmrPixelDir[1];
+    PO.point[2]  = op.origin[2] + t * cmrPixelDir[2];
+    PO.colour[0] = PO.point[0]/(bdr[1]-bdr[0]);
+    PO.colour[1] = PO.point[1]/(bdr[3]-bdr[2]);
+    PO.colour[2] = PO.point[2]/(bdr[5]-bdr[4]);
+    PO.colour[3] = 1;
+    camera_putpixel(pObj, PO);
+    if(obj) return 1; // always executes*/
 
-    f_of_t=0;
-    low=high=0;
+
+    low = high = 0;
     s = (u-t) / obj->variable[0];
-    SmaFlt PIXELSIZE = 1/(SmaFlt)PixelsPUL;
-    if(s<PIXELSIZE) s=PIXELSIZE;
+    prev = 1/(SmaFlt)PixelsPUL; // get prev = unit length per pixel
+    if(s<prev) s=prev; // 's' cannot be less than a pixel's size
+    u += prev; // += so to deal with t+=s accuracy errors
+
     ComputeFOFT
     prev = f_of_t;
-
-    while(t<=u+PIXELSIZE) // +PIXELSIZE to deal with t+=s accuracy errors
+    while(t<=u)
     {
         bool found=false;
         if(i==0);
 
-        else if(f_of_t < -LIM)
-        {   if(prev > +LIM)        // if f_of_t changes sign
+        else if(f_of_t < -LIM){
+            if(prev > +LIM)        // if f_of_t changes sign
             {
                 low = t;
                 high = t-s;
             }
         }
-        else if(f_of_t > +LIM)
-        {   if(prev < -LIM)        // if f_of_t changes sign
+        else if(f_of_t > +LIM){
+            if(prev < -LIM)        // if f_of_t changes sign
             {
                 low = t-s;
                 high = t;
@@ -260,7 +239,7 @@ static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
                 return 0;
             }
             PO.distance = t;
-            if(camera_putpixel(cmr, pixel, &PO)) break;
+            if(camera_putpixel(pObj, PO)) break;
         }
 
         prev = f_of_t;

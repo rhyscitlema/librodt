@@ -145,9 +145,10 @@ typedef struct _Mouse
     int showSignature;
     bool enabled;
     bool allow;
+    bool moved;
 
     bool buttonPressed;
-    bool buttonBefore;
+  //bool buttonBefore;
 
     bool Button[UserInputButtonStop];
     bool ButtonBefore[UserInputButtonStop];

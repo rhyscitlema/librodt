@@ -14,7 +14,7 @@ typedef struct _PixelObject
     SmaFlt distance;    // the vertical distance from camera to object
 	SmaFlt point[3];    // the viewed point on the object
     SmaFlt colour[4];   // the colour of the point
-    struct _PixelObject *next;
+    //struct _PixelObject *next;
 } PixelObject;
 
 
@@ -27,17 +27,8 @@ typedef struct _Camera
     int XS, YS, notfirst, memorysize;
 
     DrawingWindow drawing_window;       // Utility to draw to device screen
-    PixelObject** pixelObject;          // Array of objects infront of the camera pixels
+    PixelObject* pixelObject;           // Array of objects painted by camera
     int* pixelColour;                   // Array of colours for the camera pixels
-
-    /* The below are used only inside object_paint()
-       and all function calls as from object_paint()
-       They are for temporary storage. */
-    SmaFlt paintAxes[3][3];
-    SmaFlt paintPost[3];
-    SmaFlt (*storeX)[3];
-    SmaFlt (*storeY)[3];
-    int check, *checkX, *checkY;
 } Camera;
 
 
@@ -49,10 +40,10 @@ extern List* camera_list();
 
 bool camera_set (value stack, Container* container);
 
-bool camera_putpixel (Camera *camera, int pixel, const PixelObject* pixelObject);
-
 void camera_paint_initialise (Camera *camera);
 void camera_paint_finalise (Camera *camera);
+
+bool camera_putpixel (PixelObject *pObj, const PixelObject PO);
 
 
 /* Note, the below are:

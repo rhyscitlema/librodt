@@ -63,7 +63,8 @@ static value calculator_evaluate (value stack, const wchar* source, Container** 
             out = getMessage(vGetPrev(stack)); // get error message
         else
         {
-            if(rfet_commit_replacement(stack, rfet))
+            if(!headMouse->moved
+            && rfet_commit_replacement(stack, rfet))
             {
                 rfet_get_container_text(stack, rfet);
                 out = getStr2(vGet(stack));
@@ -261,6 +262,7 @@ void userinterface_update()
         userinterface_process(!ok);         // will clear user inputs
         if(!graphplotter_update_repeat) break;
     }
+    headMouse->moved = false; // TODO: review this in relation to bug in evaluate_main()
     if(draw_request_count<=0)
     {
         draw_state = DO_DRAW;
