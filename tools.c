@@ -4,21 +4,21 @@
 
 #include <_stdio.h>
 #include <_texts.h>
-#include <files.h>
 #include <rfet.h>
 #include <outsider.h>
-#include <userinterface.h>
-#include <surface.h>
-#include <camera.h>
-#include <mouse.h>
-#include <timer.h>
-#include <tools.h>
+#include "getimage.h"
+#include "userinterface.h"
+#include "surface.h"
+#include "camera.h"
+#include "mouse.h"
+#include "files.h"
+#include "timer.h"
+#include "tools.h"
 
-#define errmsg errorMessage()
 
+const_Str2 argv[3];
 
-
-SmaFlt PIXELSIZE;
+uint32_t PixelsPUL;
 
 static Container* base_surface = NULL;
 static Container* base_camera = NULL;
@@ -27,14 +27,14 @@ static Container* base_rodt = NULL;
 static Container* base_uidt = NULL;
 static Container* curr_uidt = NULL;
 
-static const wchar base_uidt_rfet[];
-static const wchar base_rodt_rodt[];
+static const wchar* get_base_uidt();
+static const wchar* get_base_rodt();
 
 static const char* uidt_name[] = {
     "main_textfield",
 
     "eval_button",
-    "message_textfield",
+    "mesg_textfield",
     "lock_button",
 
     "prev_button",
@@ -60,132 +60,109 @@ static const int uidt_count = SIZEOF(uidt_name);
 static int Layout[20][4];
 
 
+static bool do_uidt_eval (value stack, Container* uidt, int* output, int count, const char* name)
+{
+    stack = component_evaluate(stack, uidt, component_parse(stack, component_find(stack, uidt, C31(name), 0)), NULL);
+    return integFromValue(stack, count, 1, output, name);
+}
 
-bool tools_uidt_eval (int layout[][4], void* _uidt)
+bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
 {
     if(!curr_uidt) curr_uidt = base_uidt;
     Container* uidt = (Container*)_uidt;
     if(!uidt) uidt = curr_uidt;
+    evaluation_instance(true);
 
-    GeneralArg garg = { .caller = uidt, .message = errmsg, .argument = NULL };
-    ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
-    Component* component;
-
-    int i;
-    const lchar* name;
     memset(layout, 0, uidt_count*4*sizeof(int));
-
+    int i;
     for(i=0; i < uidt_count; i++)
-    {
-        name = CST31(uidt_name[i]);
-        component = component_parse(component_find(uidt,name,errmsg,0));
-        if(!component_evaluate(eca, component, VST41)
-        || !integerFromVst(layout[i], eca.stack, 4, errmsg, uidt_name[i])) break;
-    }
+        if(!do_uidt_eval(stack, uidt, layout[i], 4, uidt_name[i])) break;
+
     while(i==uidt_count // if there was no error
         && _uidt!=NULL) // if checking for error
     {
-        // note: not a loop
+    // NOTE: not a loop
         i=0; // assume an error
 
-        name = CST31("lower_period");
-        component = component_parse(component_find(uidt,name,errmsg,0));
-        if(!component_evaluate(eca, component, VST11)
-        || !integerFromVst(NULL, eca.stack, 1, errmsg, "period")) break;
-
-        name = CST31("higher_period");
-        component = component_parse(component_find(uidt,name,errmsg,0));
-        if(!component_evaluate(eca, component, VST11)
-        || !integerFromVst(NULL, eca.stack, 1, errmsg, "period")) break;
+        if(!do_uidt_eval(stack, uidt, NULL, 1, "lower_period")) break;
+        if(!do_uidt_eval(stack, uidt, NULL, 1, "higher_period")) break;
 
         #ifdef LIBRODT
-        SmaFlt pixelsize;
-        name = CST31("PixelSize");
-        component = component_parse(component_find(uidt,name,errmsg,0));
-        if(!component_evaluate(eca, component, VST11)
-        || !floatFromVst(&pixelsize, eca.stack, 1, errmsg, "PixelSize")) break;
-        PIXELSIZE = pixelsize;
+        if(!do_uidt_eval(stack, uidt, (int*)&PixelsPUL, 1, "PixelsPUL")) break;
         #endif
 
         i=uidt_count; // no error found
         curr_uidt = uidt;
         uidt->owner = &curr_uidt;
-        break;
+    break;
     }
     return (i==uidt_count);
 }
 
 
-static wchar* usermessage = NULL;
+static Str2 usermessage = {0};
 const wchar* userMessage() { return usermessage; }
 
-static bool set_user_message (Container* rodt)
+static bool set_user_message (value stack, Container* rodt)
 {
-    GeneralArg garg = { .caller = rodt, .message = errmsg, .argument = NULL };
-    ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
+    Component* comp = container_find(stack, rodt, C31(".|message"), true);
+    comp = component_parse(stack, comp);
 
-    Component* component = component_find(rodt, CST31("message"), errmsg, 0);
-    if(component)
-    {   component = component_parse(component);
-        if(!component_evaluate(eca, component, VST11)) return false;
+    evaluation_instance(true); // is this even needed here?!
+    if(VERROR(component_evaluate(stack, rodt, comp, NULL)))
+        return false; // keep existing usermessage
 
-        if(!isString(eca.stack[0]))
-        {
-            set_message(eca.garg->message,
-                L"Error in \\1 at \\2:\\3:\r\b '\\4' must evaluate to a string.",
-                c_name(component));
-            return false;
-        }
-        lchar* lstr = getString(eca.stack[0]);
-        astrcpy23(&usermessage, lstr);
-        lchar_free(lstr);
+    if(!isStr2(vGet(stack)))
+    {
+        argv[0] = L"Error on %s at (%s,%s) in %s:\r\nThis must evaluate to a string.";
+        setMessageE(stack, 0, 1, argv, c_name(comp));
+        return false;
     }
+    astrcpy22(&usermessage, getStr2(vGet(stack)));
     return true;
 }
 
 
-void tools_init (int stack_size, const wchar* uidt_rfet)
+void tools_init (size_t stack_size, const wchar* uidt_rfet)
 {
-    lchar* text=NULL;
-    bool success;
-
     mouse_init();
     rfet_init(stack_size);
+    value stack = stackArray();
+    bool success=false;
 
     // 1) set BASE UIDT
-    if(!uidt_rfet || !uidt_rfet[0])
-        uidt_rfet = base_uidt_rfet;
-    astrcpy32(&text, uidt_rfet);
-    set_line_coln_source(text, 1, 1, L"UIDT");
+    if(strEnd2(uidt_rfet)) uidt_rfet = get_base_uidt();
+    Str3 text = astrcpy32(C37(NULL), uidt_rfet, L"BASE_UIDT");
+    base_uidt = container_parse(stack, NULL, C37(NULL), text); text=C37(NULL);
 
-    success=false;
-    base_uidt = container_parse(NULL, NULL, text); text=NULL;
-    if(base_uidt
-    && dependence_parse()
-    && tools_uidt_eval(Layout, base_uidt))
+    if(base_uidt!=NULL
+    && dependence_parse(stack)
+    && tools_uidt_eval(stack, Layout, base_uidt))
         success = true;
     else base_uidt = NULL;
+
     dependence_finalise(success);
-    if(base_uidt==NULL) puts2(errorMessage());
+    if(base_uidt==NULL) { puts1("-----BASE_UIDT_FAIL-----"); puts2(getMessage(vGet(stack))); }
     assert(base_uidt!=NULL);
 
     #ifdef LIBRODT
     // 2) set BASE RODT
-    astrcpy32(&text, base_rodt_rodt);
-    set_line_coln_source(text, 1, 1, L"RODT");
-    base_rodt = (Container*)rfet_parse(NULL, text); text=NULL;
+    text = astrcpy32(text, get_base_rodt(), L"BASE_RODT");
+    base_rodt = (Container*)rfet_parse(stack, NULL, text); text=C37(NULL);
+    if(base_rodt==NULL) { puts1("-----BASE_RODT_FAIL-----"); puts2(getMessage(vGet(stack))); }
     assert(base_rodt!=NULL);
-    set_user_message(base_rodt);
+    success = set_user_message(stack, base_rodt);
+    assert(success);
 
     // 3) set base objects
-    base_object  = container_find(base_rodt, CST31(".|Object" ), 0,0,0);
-    base_camera  = container_find(base_rodt, CST31(".|Camera" ), 0,0,0);
-    base_surface = container_find(base_rodt, CST31(".|Surface"), 0,0,0);
+    base_object  = component_find(stack, base_rodt, C31("Object" ), 0);
+    base_camera  = component_find(stack, base_rodt, C31("Camera" ), 0);
+    base_surface = component_find(stack, base_rodt, C31("Surface"), 0);
     assert(base_object!=NULL);
     assert(base_camera!=NULL);
     assert(base_surface!=NULL);
     #else
-    CST12(base_rodt_rodt); // just a dirty way to avoid compiler warning!
+    uidt_rfet = get_base_rodt(); // just to skip compiler warning!
     #endif
 
     userinterface__init();
@@ -193,28 +170,34 @@ void tools_init (int stack_size, const wchar* uidt_rfet)
 
 
 
-enum CONT_TYPE {
-    CONT_NONE,
-    UIDT,
-    RODT,
-    CAMERA,
-    SURFACE,
-    FMTTEXT
+enum RFET_TYPE {
+    RFET_OTHER,
+    RFET_UIDT,
+    RFET_RODT,
+    RFET_CAMERA,
+    RFET_SURFACE,
+    RFET_DOCUMENT,
+    RFET_GLOBAL
 };
-static inline bool ISOBJECT(enum CONT_TYPE type)
-{ return (type==CAMERA || type==SURFACE || type==FMTTEXT); }
+static inline bool ISOBJECT(enum RFET_TYPE type)
+{ return ( type==RFET_CAMERA
+        || type==RFET_SURFACE
+        || type==RFET_DOCUMENT);
+}
 
-static enum CONT_TYPE get_type (const Container* c)
+static enum RFET_TYPE get_type (const Container* c)
 {
-    if(c_isaf(c)) return 0;
+    if(!c || !c_iscont(c)) return 0;
+    if(0==strcmp31(c_name(c), "GLOBAL.RFET"))
+        return RFET_GLOBAL;
     for( ; c!=NULL; c = c_type(c))
     {
-        if(c==base_uidt) return UIDT;
-        if(c==base_rodt) return RODT;
-        if(c==base_camera) return CAMERA;
-        if(c==base_surface) return SURFACE;
+        if(c==base_uidt) return RFET_UIDT;
+        if(c==base_rodt) return RFET_RODT;
+        if(c==base_camera) return RFET_CAMERA;
+        if(c==base_surface) return RFET_SURFACE;
     }
-    return CONT_NONE;
+    return RFET_OTHER;
     // NOTE: no Object as an inner container to another object
 }
 
@@ -230,53 +213,60 @@ static inline bool is_base (const Container* c)
 
 
 
-static bool rodt_load (Container* rodt);
+static bool rodt_load (value stack, Container* rodt);
 
-static bool process_container (Container* c)
+static bool process_container (value stack, Container* c)
 {
     switch(get_type(c))
     {
-    case UIDT: return (tools_uidt_eval(Layout,c) && main_window_resize());
-    case RODT: return rodt_load(c);
+    case RFET_UIDT: return (tools_uidt_eval(stack,Layout,c) && main_window_resize());
+    case RFET_RODT: return rodt_load(stack, c);
     #ifdef LIBRODT
-    case CAMERA: return camera_set(c);
-    case SURFACE: return surface_set(c);
+    case RFET_CAMERA: return camera_set(stack, c);
+    case RFET_SURFACE: return surface_set(stack, c);
     #endif
     default:  return true;
     }
 }
 
-static bool rodt_load (Container* rodt)
+static bool rodt_load (value stack, Container* rodt)
 {
     void* c = avl_min(&rodt->inners);
     for( ; c != NULL; c = avl_next(c))
     {
-        if(!process_container((Container*)c))
+        if(!process_container(stack, (Container*)c))
         {
-            wchar* message = errmsg+2000;
-            sprintf2(message, L"%s\r\n\r\nContinue loading?", errmsg);
-            if(!wait_for_confirmation(L"Error", message)) return false;
+            value v = vnext(stack);
+            argv[0] = L"%s\r\n\r\nContinue loading?";
+            argv[1] = getMessage(vGet(stack));
+            setMessage(v, 0, 2, argv);
+
+            wchar save[strlen2(argv[1])+1];
+            strcpy22(save, argv[1]);
+            if(!wait_for_confirmation(L"Error", getMessage(v))){
+                setError(stack, save);
+                return false;
+            }
         }
     }
-    if(!set_user_message(rodt)) return false;
-    return true;
+    return set_user_message(stack, rodt);
 }
 
 
 
-static Container* get_selected ()
+static Container* get_selected (value stack)
 {
-    lchar* path=NULL;
-    astrcpy32(&path, userinterface_get_text(UI_PATH_TEXT));
-    set_line_coln_source(path, 1, 1, L"path name");
+    const wchar* wstr = userinterface_get_text(UI_PATH_TEXT);
+    long len = strlen2(wstr);
+    lchar lstr[len+1];
+    Str3 path = set_lchar_array(lstr, len+1, wstr, L"path name");
 
     Container* container = NULL;
-    if(path && path->wchr!=0 && path->wchr!='|')
-        strcpy21(errmsg, "Error: path name must start with a '|'.");
-    else container = container_find(NULL, path, errmsg, 0, true);
+    if(wstr && *wstr && *wstr!='|')
+        setError(stack, L"Error: path name must start with a '|'.");
+    else container = container_find(stack, NULL, path, true);
 
-    if(!container) display_message(errmsg);
-    lchar_free(path);
+    if(!container) display_message(getMessage(vGet(stack)));
     return container;
 }
 
@@ -284,19 +274,35 @@ static Container* get_selected ()
 
 #define MAIN_ENTRY_NAME L"entry"
 static bool g_check = false;
-bool checkfail (const Container* c, const lchar* name)
+
+/* Called by container_parse() in component.c */
+bool checkfail (value stack, const Container* c, const_Str3 name, bool hasType, bool isNew)
 {
-    if(!g_check) return false;
-    g_check = false;
-    if(name)
-    {   if(0!=strcmp32(name, MAIN_ENTRY_NAME))
-        {
-            sprintf2(errmsg, L"A new container:\r\n\"%s|%s\"\r\nwill be created.", container_path_name(c), CST23(name));
-            if(!wait_for_confirmation(L"Confirm to continue", errmsg))
-            { strcpy21(errmsg, "Container creation is cancelled."); return true; }
+    bool isentry = 0==strcmp32(name, MAIN_ENTRY_NAME);
+
+    if(isentry && hasType)
+    {   setError(stack, L"Provide a container name different from \"entry\".");
+        wait_for_user_first(L"Error", getMessage(stack));
+        return true;
+    }
+    if(isNew && !isentry && g_check)
+    {
+        argv[0] = L"A new container:\r\n\"%s|%s\"\r\nwill be created.";
+        argv[1] = container_path_name(stack, c); // c = parent container
+        argv[2] = C23(name);
+        value v = vnext(stack);
+        setMessage(v, 0, 3, argv);
+
+        if(!wait_for_confirmation(L"Confirm to continue", getMessage(v)))
+        {   setError(stack, L"Container creation cancelled.");
+            return true;
         }
     }
-    else if(is_base(c)) { strcpy21(errmsg, "This container cannot be updated."); return true; }
+    if(!isNew && is_base(c)) {
+        setError(stack, L"This container cannot be updated.\r\nUse one that inherits from it.");
+        return true;
+    }
+    g_check = false;
     return false;
 }
 
@@ -305,65 +311,71 @@ bool checkfail (const Container* c, const lchar* name)
 void tools_do_eval (const wchar* source)
 {
     wait_for_draw_to_finish();
+    value stack = stackArray();
     bool success = false;
     while(true) // not a loop
     {
-        Container* container = get_selected();
+        Container* container = get_selected(stack);
         if(container==NULL) break;
 
         Object* obj = NULL;
         if(ISOBJECT(get_type(container)))
             obj = (Object*)container->owner;
 
-        const lchar* name = c_name(container);
-        main_entry_rfet = name ? container : NULL;
+        const_Str3 name = c_name(container);
+        main_entry_rfet = strEnd3(name) ? NULL : container;
         // only the RootContainer has no name
 
-        if(!source)
-        {   g_check = true;
-            if(name)
-                source = CST23(c_name(container));
-            else if(file_exists_get())
-                source = get_name_from_path_name(NULL,file_name_get());
+        if(strEnd2(source))
+        {
+            g_check = true;
+            if(!strEnd3(name))
+                source = C23(name);
+            else if(!strEnd2(get_file_name()))
+                source = get_name_from_path_name(get_file_name());
             else source = MAIN_ENTRY_NAME;
         }
-        bool b = calculator_evaluate_main(source);
+        value v = calculator_evaluate_main(stack, source); // note: parsing only
         g_check = false;
-        if(!b) break;
+        if(VERROR(v)) break;
 
         container = main_entry_rfet;
-        if(!process_container(container)) break;
-        select_container(container);
+        if(!process_container(stack, container)) break;
 
-        enum CONT_TYPE type = get_type(container);
+        enum RFET_TYPE type = get_type(container);
+        if(type!=RFET_UIDT
+        && type!=RFET_GLOBAL) select_container(container);
+        else userinterface_set_text(UI_PATH_TEXT, L"");
+
         if(obj && !ISOBJECT(type))
         {
             assert(obj->container == container);
             obj->container->owner = NULL;
             obj->container = NULL;
-            obj->destroy(obj);
+            obj->destroy(obj); // TODO: no, better send error message and tell user to use explicit deletion instead
         }
-        else if(container==curr_uidt && type!=UIDT)
+        else if(container==curr_uidt && type!=RFET_UIDT)
         {
-            strcpy21(errmsg, "Container is no more of type User Interface Definition Text (UIDT). The used UIDT will change back to the original. If this was not intended then provide a container name.");
-            wait_for_user_first(L"Warning", errmsg);
-            tools_uidt_eval(Layout, base_uidt);
-            main_window_resize();
+            setError(stack, L"Container is no more of type UIDT. The used UIDT will change back to the original.");
+            wait_for_user_first(L"Warning", getMessage(stack));
+            if(tools_uidt_eval(stack, Layout, base_uidt))
+                main_window_resize();
         }
         success = true;
-        errmsg[0]=0;
+        setBool(stack, true);
         userinterface_update();
         break;
     }
-    if(!success) display_message(errmsg);
+    if(!success) display_message(getMessage(vGet(stack)));
 }
 
 
 
-void tools_do_delete()
+void tools_do_delete ()
 {
     wait_for_draw_to_finish();
-    Container* container = get_selected();
+    value stack = stackArray();
+    Container* container = get_selected(stack);
     if(!container) return;
 
     if(is_base(container))
@@ -371,14 +383,14 @@ void tools_do_delete()
 
     if(container==curr_uidt)
     {
-        strcpy21(errmsg, "Container of type User Interface Definition Text (UIDT) will be deleted. The used UIDT will change back to the original. Is that OK?");
-        if(!wait_for_confirmation(L"Warning", errmsg)) return;
-        tools_uidt_eval(Layout, base_uidt);
-        main_window_resize();
+        setError(stack, L"Container of type UIDT will be deleted. The used UIDT will change back to the original. Is that OK?"); // TODO: maybe change to first one inherited
+        if(!wait_for_confirmation(L"Warning", getMessage(stack))) return;
+        if(tools_uidt_eval(stack, Layout, base_uidt))
+            main_window_resize();
     }
 
-    wchar* text = (wchar*)mainStack()+2000; // not errorMessage(), better use a local array!
-    strcpy23(text, c_rfet(container));
+    setStr23(stack, c_rfet(container));
+    const wchar* text = getStr2(stack);
 
     if(ISOBJECT(get_type(container)))
     {   Object* obj = (Object*)container->owner;
@@ -397,46 +409,49 @@ void tools_do_delete()
 void select_container (Container* container)
 {
     if(!container) return;
-    const lchar* rfet = c_rfet(container);
-    assert(rfet!=NULL);
+    const_Str3 rfet = c_rfet(container);
+    assert(!strEnd3(rfet));
 
-    void* node = list_find(containers_list, NULL, pointer_compare, &container);
-    assert(node!=NULL);
-    list_head_push(containers_list, list_node_pop(containers_list, node));
+    void* node = list_find(container_list(), NULL, pointer_compare, &container);
+    assert(node!=NULL); if(node==NULL) return;
+    list_head_push(container_list(), list_node_pop(container_list(), node));
 
-    enum CONT_TYPE type = get_type(container);
+    enum RFET_TYPE type = get_type(container);
     if(ISOBJECT(type))
     {
         Object* obj = (Object*)container->owner;
-        userinterface_set_text (UI_MAIN_TEXT, CST23(rfet));
+        userinterface_set_text (UI_MAIN_TEXT, C23(rfet));
         headMouse->clickedObject = obj;
-        if(type==CAMERA) headMouse->clickedCamera = (Camera*)obj;
+        if(type==RFET_CAMERA) headMouse->clickedCamera = (Camera*)obj;
     }
-    else display_main_text (CST23(rfet));
-    userinterface_set_text(UI_PATH_TEXT, container_path_name(container));
+    else display_main_text (C23(rfet));
+    uint32_t stack[1000];
+    userinterface_set_text(UI_PATH_TEXT, container_path_name(stack, container));
     display_message(NULL);
+    if(container != main_entry_rfet) main_entry_rfet = NULL;
 }
 
-void tools_do_select()
+void tools_do_select ()
 {
-    Container* container = get_selected();
+    value stack = stackArray();
+    Container* container = get_selected(stack);
     if(!container) return;
-    if(c_rfet(container))
+    if(!strEnd3(c_rfet(container)))
         select_container(container);
     else display_main_text(NULL);
 }
 
 void tools_get_prev()
 {
-    void* node = list_head_pop(containers_list);
-    list_tail_push(containers_list, node);
-    select_container(*(Container**)list_head(containers_list));
+    void* node = list_head_pop(container_list());
+    list_tail_push(container_list(), node);
+    select_container(*(Container**)list_head(container_list()));
 }
 
 void tools_get_next()
 {
-    void* node = list_tail_pop(containers_list);
-    list_head_push(containers_list, node);
+    void* node = list_tail_pop(container_list());
+    list_head_push(container_list(), node);
     select_container(*(Container**)node);
 }
 
@@ -452,13 +467,13 @@ void tools_do_clear()
 void tools_do_pause (bool pause)
 {
     timer_pause(pause);
-    const wchar* text = CST21(pause ? TEXT_RESUME : TEXT_PAUSE);
+    const wchar* text = C21(pause ? TEXT_RESUME : TEXT_PAUSE);
     userinterface_set_text(UI_PAUSE_BUTTON, text);
 }
 
 static void time_reverse_set_text()
 {
-    const wchar* text = CST21(timer_get_period()<0 ? TEXT_FORWARD : TEXT_BACKWARD);
+    const wchar* text = C21(timer_get_period()<0 ? TEXT_FORWARD : TEXT_BACKWARD);
     userinterface_set_text(UI_FORWARD_BUTTON, text);
 }
 
@@ -469,7 +484,8 @@ void tools_go_forward (bool forward)
     if(forward ^ positive)
     {
         period = -period;
-        timer_set_period(period);
+        uint32_t V[100];
+        timer_set_period(setSmaInt(V, period));
     }
     time_reverse_set_text();
     display_time_text();
@@ -477,52 +493,61 @@ void tools_go_forward (bool forward)
 
 static void edit_period (const char* name)
 {
-    if(!curr_uidt) curr_uidt = base_uidt;
-    GeneralArg garg = { .caller = curr_uidt, .message = errmsg, .argument = NULL };
-    ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
+    uint32_t V[10000];
+    value stack = V;
 
-    int period;
-    Component* component = component_find(curr_uidt,CST31(name),errmsg,0);
+    if(!curr_uidt) curr_uidt = base_uidt;
+    Component* component = component_find(stack, curr_uidt, C31(name), 0);
     assert(component != NULL);
 
-    if(component_evaluate(eca, component, VST11)
-    && integerFromVst(&period, eca.stack, 1, errmsg, "period")
-    && timer_set_period(period))
-    {
-        time_reverse_set_text();
+    evaluation_instance(true);
+    stack = component_evaluate(stack, curr_uidt, component, NULL);
+
+    stack = timer_set_period(stack);
+    if(VERROR(stack))
+        display_message(getMessage(vGetPrev(stack)));
+    else
+    {   time_reverse_set_text();
         display_time_text();
     }
-    else display_message(errorMessage());
 }
-void tools_lower_period()  { edit_period("lower_period"); }
+void tools_lower_period () { edit_period("lower_period"); }
 void tools_higher_period() { edit_period("higher_period"); }
 
 
 bool tools_set_time (const wchar* entry)
 {
+    value stack = stackArray();
     if(!entry) entry = userinterface_get_text(UI_TIME_TEXT);
+    bool success=false;
     while(true) // not a loop
     {
-        const value* vst = rfet_parse_and_evaluate(entry, NULL, VST21);
-        if(!vst) break;
+        stack = rfet_parse_and_evaluate(stack, entry, L"set_time", NULL);
+        if(VERROR(stack)) break;
 
-        int period;
-        if(!integerFromVst(&period, vst+1, 1, errmsg, "period")) break;
+        value y = vPrev(stack);
+        const_value n = vGet(y);
 
-        value time = vst[2];
-        if(!IsNumber(getType(time)))
-        { strcpy21(errmsg, "Error: given time is not a number."); break; }
+        y = check_arguments(y,*n,2);
+        if(y) { stack = y; break; }
 
-        if(!timer_set_period(period)) break;
-        timer_set_time(time);
-        userinterface_update();
+        n += 2; // skip vector header
+        stack = timer_set_period(setRef(stack, n));
+        if(VERROR(stack)) break;
+
+        n = vNext(n); // skip to second vector element
+        stack = timer_set_time(setRef(stack, n));
+        if(VERROR(stack)) break;
 
         time_reverse_set_text();
-        errmsg[0]=0;
+        userinterface_update();
+
+        success=true;
+        stack = setBool(stack, true);
         break;
     }
-    if(errmsg[0]) display_message(errmsg);
-    return errmsg[0]==0;
+    if(!success) display_message(getMessage(vGetPrev(stack)));
+    return success;
 }
 
 
@@ -546,17 +571,19 @@ void tools_remove_all_objects (bool ask_confirmation)
     wait_for_draw_to_finish();
     if(ask_confirmation)
     {
-        wchar title[50], message[50];
-        strcpy21(title, "Confirm");
-        strcpy21(message, "Remove All Objects?");
+        const wchar* title = L"Confirm";
+        const wchar* message = L"Remove All Objects?";
         if(!wait_for_confirmation(title, message)) return;
     }
     mouse_clear_pointers(headMouse);
     display_main_text(NULL);
     display_message(NULL);
     userinterface_set_text(UI_PATH_TEXT, NULL);
-    object_remove_all(camera_list);
-    object_remove_all(surface_list);
+    object_remove_all(camera_list());
+    object_remove_all(surface_list());
+    #ifdef LIBRODT
+    unload_images();
+    #endif
 }
 
 void tools_clean()
@@ -566,231 +593,212 @@ void tools_clean()
     userinterface_clean();
     mouse_clean();
     rfet_clean();
-    wchar_free(usermessage); usermessage=NULL;
+    usermessage = str2_free(usermessage);
 }
 
 
 
-static const wchar base_uidt_rfet[] = {
+static const wchar base_uidt_rfet[] =
 #ifdef LIBRODT
-   114,101,115,117,108,116, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 85,115,101,114, 95, 73,
-   110,116,101,114,102, 97, 99,101, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
-    59, 13, 10, 13, 10, 13, 10,119,104, 32, 61, 32, 77, 97,105,110, 87,105,110,100,111,119, 87,105,100,
-   116,104, 72,101,105,103,104,116, 59, 13, 10,119, 32, 61, 32,119,104, 91, 48, 93, 59, 13, 10,104, 32,
-    61, 32,119,104, 91, 49, 93, 59, 13, 10, 13, 10,104, 49, 32, 61, 32, 54, 48, 59, 32, 32, 32, 32, 35,
-    32,104,101,105,103,104,116, 32,111,102, 32, 49,115,116, 32,108, 97,121,101,114, 13, 10,104, 50, 32,
-    61, 32, 51, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102, 32, 50,110,100, 32,
-   108, 97,121,101,114, 13, 10,104, 51, 32, 61, 32, 51, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,
-   104,116, 32,111,102, 32, 51,114,100, 32,108, 97,121,101,114, 13, 10,104, 52, 32, 61, 32, 53, 48, 59,
-    32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102, 32, 52,116,104, 32,108, 97,121,101,114,
-    13, 10,104, 53, 32, 61, 32, 50, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102,
-    32, 53,116,104, 32,108, 97,121,101,114, 13, 10, 13, 10,121, 53, 32, 61, 32, 32,104, 45,104, 53, 59,
-    32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32, 53,116,104, 32,108, 97,121,101,114, 13, 10,
-   121, 52, 32, 61, 32,121, 53, 45,104, 52, 59, 32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32,
-    52,116,104, 32,108, 97,121,101,114, 13, 10,121, 51, 32, 61, 32,121, 52, 45,104, 51, 59, 32, 35, 32,
-   121, 95,115,116, 97,114,116, 32,111,102, 32, 51,114,100, 32,108, 97,121,101,114, 13, 10,121, 50, 32,
-    61, 32,121, 51, 45,104, 50, 59, 32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32, 50,110,100,
-    32,108, 97,121,101,114, 13, 10,121, 49, 32, 61, 32,121, 50, 45,104, 49, 59, 32, 35, 32,121, 95,115,
-   116, 97,114,116, 32,111,102, 32, 49,115,116, 32,108, 97,121,101,114, 13, 10, 13, 10, 97, 32, 61, 32,
-    54, 48, 59, 13, 10, 13, 10, 13, 10,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32,
-    32, 32, 32, 32, 61, 32,123, 48, 44, 32, 48, 44, 32,119, 44, 32,121, 49,125, 59, 13, 10, 13, 10,101,
-   118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 32, 32,
-    48, 44, 32,121, 49, 44, 32, 32, 32, 51, 48, 32, 32, 32, 44, 32,104, 49,125, 59, 13, 10,109,101,115,
-   115, 97,103,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 61, 32,123, 32, 32, 51, 48, 44,
-    32,121, 49, 44, 32,119, 45, 51, 48, 45, 50, 48, 44, 32,104, 49,125, 59, 13, 10,108,111, 99,107, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123,119, 45, 50, 48, 44, 32,121,
-    49, 44, 32, 32, 32, 32, 32, 32, 50, 48, 44, 32,104, 49,125, 59, 13, 10, 13, 10,112,114,101,118, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 42, 97, 44, 32,121, 50,
-    44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59, 13, 10,110,101,120,116, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 49, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32,
-    44, 32,104, 50,125, 59, 13, 10,100,101,108,101,116,101, 95, 98,117,116,116,111,110, 32, 32, 32, 32,
-    32, 32, 32, 61, 32,123, 50, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59,
-    13, 10, 99,108,101, 97,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123,
-    51, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59, 13, 10,112, 97,116,104,
-    95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 32, 32, 61, 32,123, 52, 42, 97, 44, 32,121,
-    50, 44,119, 45, 52, 42, 97, 44, 32,104, 50,125, 59, 13, 10, 13, 10,112, 97,117,115,101, 95, 98,117,
-   116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 42, 97, 44, 32,121, 51, 44, 32, 32,
-    97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,102,111,114,119, 97,114,100, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 61, 32,123, 49, 42, 97, 44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104,
-    51,125, 59, 13, 10,108,111,119,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32,
-    61, 32,123, 50, 42, 97, 44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,104,
-   105,103,104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 51, 42, 97,
-    44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,116,105,109,101, 95,116,101,
-   120,116,102,105,101,108,100, 32, 32, 32, 32, 32, 32, 61, 32,123, 52, 42, 97, 44, 32,121, 51, 44,119,
-    45, 52, 42, 97, 44, 32,104, 51,125, 59, 13, 10, 13, 10, 99, 97,108, 99, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 48, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 44,
-    32,121, 52, 44, 32, 32, 32, 32, 97, 32, 32, 32, 32, 32, 44, 32,104, 52,125, 59, 13, 10, 99, 97,108,
-    99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 97, 32, 32, 32,
-    32, 32, 32, 32, 32, 32, 32, 44, 32,121, 52, 44, 32, 40,119, 45, 97, 41, 42, 51, 47, 53, 44, 32,104,
-    52,125, 59, 13, 10, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-    61, 32,123, 32, 97, 43, 40,119, 45, 97, 41, 42, 51, 47, 53, 44, 32,121, 52, 44, 32, 40,119, 45, 97,
-    41, 42, 50, 47, 53, 44, 32,104, 52,125, 59, 13, 10, 13, 10,115,116, 97,116,117,115, 95, 98, 97,114,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 44, 32,121, 53, 44, 32,119, 44, 32,104, 53,
-   125, 59, 13, 10, 13, 10, 13, 10,112,114,105,118, 97,116,101, 32,114,101,115,117,108,116, 32, 61, 13,
-    10, 32, 32, 32, 32, 40, 34,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32,
-    34, 32, 44, 32,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44,
-    13, 10, 13, 10, 32, 32, 32, 32, 40, 34,101,118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32,
-    32, 32, 32, 34, 32, 44, 32,101,118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32,
-    41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,109,101,115,115, 97,103,101, 95,116,101,120,116,102,105,
-   101,108,100, 32, 34, 32, 44, 32,109,101,115,115, 97,103,101, 95,116,101,120,116,102,105,101,108,100,
-    32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,108,111, 99,107, 95, 98,117,116,116,111,110, 32, 32,
-    32, 32, 32, 32, 32, 34, 32, 44, 32,108,111, 99,107, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32,
-    32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32, 32, 32, 40, 34,112,114,101,118, 95, 98,117,116,116,111,
-   110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,112,114,101,118, 95, 98,117,116,116,111,110, 32, 32,
-    32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,110,101,120,116, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,110,101,120,116, 95, 98,117,116,116,111,110, 32,
-    32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,100,101,108,101,116,101, 95, 98,
-   117,116,116,111,110, 32, 32, 32, 32, 32, 34, 32, 44, 32,100,101,108,101,116,101, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34, 99,108,101, 97,114, 95, 98,
-   117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32, 99,108,101, 97,114, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,112, 97,116,104, 95,116,
-   101,120,116,102,105,101,108,100, 32, 32, 32, 32, 34, 32, 44, 32,112, 97,116,104, 95,116,101,120,116,
-   102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32, 32, 32, 40, 34,112, 97,117,
-   115,101, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,112, 97,117,115,101, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,102,111,
-   114,119, 97,114,100, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 34, 32, 44, 32,102,111,114,119, 97,
-   114,100, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,108,
-   111,119,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,108,111,119,101,
-   114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,
-   104,105,103,104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 34, 32, 44, 32,104,105,103,
-   104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40,
-    34,116,105,109,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 34, 32, 44, 32,116,105,
-   109,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32,
-    32, 32, 40, 34, 99, 97,108, 99, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44,
-    32, 99, 97,108, 99, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32,
-    32, 32, 32, 40, 34, 99, 97,108, 99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 34, 32,
-    44, 32, 99, 97,108, 99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10,
-    32, 32, 32, 32, 40, 34, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 34,
-    32, 44, 32, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13,
-    10, 13, 10, 32, 32, 32, 32, 40, 34,115,116, 97,116,117,115, 95, 98, 97,114, 32, 32, 32, 32, 32, 32,
-    32, 32, 34, 32, 44, 32,115,116, 97,116,117,115, 95, 98, 97,114, 32, 32, 32, 32, 32, 32, 32, 32, 41,
-    32, 59, 13, 10, 13, 10, 13, 10,108,111,119,101,114, 95,112,101,114,105,111,100, 32, 32, 61, 32, 32,
-    84,105,109,101,114, 80,101,114,105,111,100, 32, 45, 32, 50, 53, 59, 13, 10,104,105,103,104,101,114,
-    95,112,101,114,105,111,100, 32, 61, 32, 32, 84,105,109,101,114, 80,101,114,105,111,100, 32, 43, 32,
-    50, 53, 59, 13, 10, 13, 10, 80,105,120,101,108, 83,105,122,101, 32, 61, 32, 49, 47, 49, 48, 48, 48,
-    32, 59, 32, 35, 32, 61, 62, 32, 49, 48, 48, 48, 32,112,105,120,101,108,115, 32,112,101,114, 32,117,
-   110,105,116, 32,108,101,110,103,116,104, 13, 10, 13, 10, 0
+   L"result;\r\n"
+    "\r\n"
+    "name = \"User_Interface_Definition_Text\";\r\n"
+    "\r\n"
+    "\r\n"
+    "wh = MainWindowWidthHeight;\r\n"
+    "w = wh[0];\r\n"
+    "h = wh[1];\r\n"
+    "\r\n"
+    "h1 =100;    # height of 1st layer\r\n"
+    "h2 = 30;    # height of 2nd layer\r\n"
+    "h3 = 30;    # height of 3rd layer\r\n"
+    "h4 = 50;    # height of 4th layer\r\n"
+    "h5 = 20;    # height of 5th layer\r\n"
+    "\r\n"
+    "y5 = h -h5; # y_start of 5th layer\r\n"
+    "y4 = y5-h4; # y_start of 4th layer\r\n"
+    "y3 = y4-h3; # y_start of 3rd layer\r\n"
+    "y2 = y3-h2; # y_start of 2nd layer\r\n"
+    "y1 = y2-h1; # y_start of 1st layer\r\n"
+    "\r\n"
+    "a = 60;\r\n"
+    "\r\n"
+    "\r\n"
+    "main_textfield  = {0, 0, w, y1};\r\n"
+    "\r\n"
+    "eval_button     = {   0, y1,   30   , h1};\r\n"
+    "mesg_textfield  = {  30, y1, w-30-20, h1};\r\n"
+    "lock_button     = {w-20, y1,      20, h1};\r\n"
+    "\r\n"
+    "prev_button     = { 0a, y2,  a , h2};\r\n"
+    "next_button     = { 1a, y2,  a , h2};\r\n"
+    "delete_button   = { 2a, y2,  a , h2};\r\n"
+    "clear_button    = { 3a, y2,  a , h2};\r\n"
+    "path_textfield  = { 4a, y2,w-4a, h2};\r\n"
+    "\r\n"
+    "pause_button    = { 0a, y3,  a , h3};\r\n"
+    "forward_button  = { 1a, y3,  a , h3};\r\n"
+    "lower_button    = { 2a, y3,  a , h3};\r\n"
+    "higher_button   = { 3a, y3,  a , h3};\r\n"
+    "time_textfield  = { 4a, y3,w-4a, h3};\r\n"
+    "\r\n"
+    "calc_button     = { 0, y4,    a     , h4};\r\n"
+    "calc_input      = { a, y4, (w-a)*3/5, h4};\r\n"
+    "calc_result     = { b, y4, (w-a)*2/5, h4};\r\n"
+    "  private b = a+(w-a)*3/5;\r\n"
+    "\r\n"
+    "status_bar      = {0, y5, w, h5};\r\n"
+    "\r\n"
+    "\r\n"
+    "private result =\r\n"
+    "    (\"main_textfield\" , main_textfield) ,\r\n"
+    "\r\n"
+    "    (\"eval_button   \" , eval_button   ) ,\r\n"
+    "    (\"mesg_textfield\" , mesg_textfield) ,\r\n"
+    "    (\"lock_button   \" , lock_button   ) ,\r\n"
+    "\r\n"
+    "    (\"prev_button   \" , prev_button   ) ,\r\n"
+    "    (\"next_button   \" , next_button   ) ,\r\n"
+    "    (\"delete_button \" , delete_button ) ,\r\n"
+    "    (\"clear_button  \" , clear_button  ) ,\r\n"
+    "    (\"path_textfield\" , path_textfield) ,\r\n"
+    "\r\n"
+    "    (\"pause_button  \" , pause_button  ) ,\r\n"
+    "    (\"forward_button\" , forward_button) ,\r\n"
+    "    (\"lower_button  \" , lower_button  ) ,\r\n"
+    "    (\"higher_button \" , higher_button ) ,\r\n"
+    "    (\"time_textfield\" , time_textfield) ,\r\n"
+    "\r\n"
+    "    (\"calc_button   \" , calc_button   ) ,\r\n"
+    "    (\"calc_input    \" , calc_input    ) ,\r\n"
+    "    (\"calc_result   \" , calc_result   ) ,\r\n"
+    "\r\n"
+    "    (\"status_bar    \" , status_bar    ) ;\r\n"
+    "\r\n"
+    "\r\n"
+    "lower_period  =  TimerPeriod - 25;\r\n"
+    "higher_period =  TimerPeriod + 25;\r\n"
+    "\r\n"
+    "PixelsPUL = 1000 ; # Pixels Per Unit Length\r\n";
 #else
-   114,101,115,117,108,116, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 85,115,101,114, 95, 73,
-   110,116,101,114,102, 97, 99,101, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
-    59, 13, 10, 13, 10, 13, 10,119,104, 32, 61, 32, 77, 97,105,110, 87,105,110,100,111,119, 87,105,100,
-   116,104, 72,101,105,103,104,116, 59, 13, 10,119, 32, 61, 32,119,104, 91, 48, 93, 59, 13, 10,104, 32,
-    61, 32,119,104, 91, 49, 93, 59, 13, 10, 13, 10,104, 49, 32, 61, 32, 54, 48, 59, 32, 32, 32, 32, 35,
-    32,104,101,105,103,104,116, 32,111,102, 32, 49,115,116, 32,108, 97,121,101,114, 13, 10,104, 50, 32,
-    61, 32, 32, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102, 32, 50,110,100, 32,
-   108, 97,121,101,114, 13, 10,104, 51, 32, 61, 32, 51, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,
-   104,116, 32,111,102, 32, 51,114,100, 32,108, 97,121,101,114, 13, 10,104, 52, 32, 61, 32, 32, 48, 59,
-    32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102, 32, 52,116,104, 32,108, 97,121,101,114,
-    13, 10,104, 53, 32, 61, 32, 50, 48, 59, 32, 32, 32, 32, 35, 32,104,101,105,103,104,116, 32,111,102,
-    32, 53,116,104, 32,108, 97,121,101,114, 13, 10, 13, 10,121, 53, 32, 61, 32, 32,104, 45,104, 53, 59,
-    32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32, 53,116,104, 32,108, 97,121,101,114, 13, 10,
-   121, 52, 32, 61, 32,121, 53, 45,104, 52, 59, 32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32,
-    52,116,104, 32,108, 97,121,101,114, 13, 10,121, 51, 32, 61, 32,121, 52, 45,104, 51, 59, 32, 35, 32,
-   121, 95,115,116, 97,114,116, 32,111,102, 32, 51,114,100, 32,108, 97,121,101,114, 13, 10,121, 50, 32,
-    61, 32,121, 51, 45,104, 50, 59, 32, 35, 32,121, 95,115,116, 97,114,116, 32,111,102, 32, 50,110,100,
-    32,108, 97,121,101,114, 13, 10,121, 49, 32, 61, 32,121, 50, 45,104, 49, 59, 32, 35, 32,121, 95,115,
-   116, 97,114,116, 32,111,102, 32, 49,115,116, 32,108, 97,121,101,114, 13, 10, 13, 10, 97, 32, 61, 32,
-    54, 48, 59, 13, 10, 13, 10, 13, 10,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32,
-    32, 32, 32, 32, 61, 32,123, 48, 44, 32, 48, 44, 32,119, 44, 32,121, 49,125, 59, 13, 10, 13, 10,101,
-   118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 32, 32,
-    48, 44, 32,121, 49, 44, 32, 32, 32, 51, 48, 32, 32, 32, 44, 32,104, 49,125, 59, 13, 10,109,101,115,
-   115, 97,103,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 61, 32,123, 32, 32, 51, 48, 44,
-    32,121, 49, 44, 32,119, 45, 51, 48, 45, 50, 48, 44, 32,104, 49,125, 59, 13, 10,108,111, 99,107, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123,119, 45, 50, 48, 44, 32,121,
-    49, 44, 32, 32, 32, 32, 32, 32, 50, 48, 44, 32,104, 49,125, 59, 13, 10, 13, 10,112,114,101,118, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 42, 97, 44, 32,121, 50,
-    44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59, 13, 10,110,101,120,116, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 49, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32,
-    44, 32,104, 50,125, 59, 13, 10,100,101,108,101,116,101, 95, 98,117,116,116,111,110, 32, 32, 32, 32,
-    32, 32, 32, 61, 32,123, 50, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59,
-    13, 10, 99,108,101, 97,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123,
-    51, 42, 97, 44, 32,121, 50, 44, 32, 32, 97, 32, 32, 44, 32,104, 50,125, 59, 13, 10,112, 97,116,104,
-    95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 32, 32, 61, 32,123, 52, 42, 97, 44, 32,121,
-    50, 44,119, 45, 52, 42, 97, 44, 32,104, 50,125, 59, 13, 10, 13, 10,112, 97,117,115,101, 95, 98,117,
-   116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 42, 97, 44, 32,121, 51, 44, 32, 32,
-    97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,102,111,114,119, 97,114,100, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 61, 32,123, 49, 42, 97, 44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104,
-    51,125, 59, 13, 10,108,111,119,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 32,
-    61, 32,123, 50, 42, 97, 44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,104,
-   105,103,104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 51, 42, 97,
-    44, 32,121, 51, 44, 32, 32, 97, 32, 32, 44, 32,104, 51,125, 59, 13, 10,116,105,109,101, 95,116,101,
-   120,116,102,105,101,108,100, 32, 32, 32, 32, 32, 32, 61, 32,123, 52, 42, 97, 44, 32,121, 51, 44,119,
-    45, 52, 42, 97, 44, 32,104, 51,125, 59, 13, 10, 13, 10, 99, 97,108, 99, 95, 98,117,116,116,111,110,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 48, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 44,
-    32,121, 52, 44, 32, 32, 32, 32, 97, 32, 32, 32, 32, 32, 44, 32,104, 52,125, 59, 13, 10, 99, 97,108,
-    99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 32, 97, 32, 32, 32,
-    32, 32, 32, 32, 32, 32, 32, 44, 32,121, 52, 44, 32, 40,119, 45, 97, 41, 42, 51, 47, 53, 44, 32,104,
-    52,125, 59, 13, 10, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-    61, 32,123, 32, 97, 43, 40,119, 45, 97, 41, 42, 51, 47, 53, 44, 32,121, 52, 44, 32, 40,119, 45, 97,
-    41, 42, 50, 47, 53, 44, 32,104, 52,125, 59, 13, 10, 13, 10,115,116, 97,116,117,115, 95, 98, 97,114,
-    32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 61, 32,123, 48, 44, 32,121, 53, 44, 32,119, 44, 32,104, 53,
-   125, 59, 13, 10, 13, 10, 13, 10,112,114,105,118, 97,116,101, 32,114,101,115,117,108,116, 32, 61, 13,
-    10, 32, 32, 32, 32, 40, 34,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32,
-    34, 32, 44, 32,109, 97,105,110, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44,
-    13, 10, 13, 10, 32, 32, 32, 32, 40, 34,101,118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32,
-    32, 32, 32, 34, 32, 44, 32,101,118, 97,108, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32,
-    41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,109,101,115,115, 97,103,101, 95,116,101,120,116,102,105,
-   101,108,100, 32, 34, 32, 44, 32,109,101,115,115, 97,103,101, 95,116,101,120,116,102,105,101,108,100,
-    32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,108,111, 99,107, 95, 98,117,116,116,111,110, 32, 32,
-    32, 32, 32, 32, 32, 34, 32, 44, 32,108,111, 99,107, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32,
-    32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32, 32, 32, 40, 34,112,114,101,118, 95, 98,117,116,116,111,
-   110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,112,114,101,118, 95, 98,117,116,116,111,110, 32, 32,
-    32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,110,101,120,116, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,110,101,120,116, 95, 98,117,116,116,111,110, 32,
-    32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,100,101,108,101,116,101, 95, 98,
-   117,116,116,111,110, 32, 32, 32, 32, 32, 34, 32, 44, 32,100,101,108,101,116,101, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34, 99,108,101, 97,114, 95, 98,
-   117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32, 99,108,101, 97,114, 95, 98,117,116,116,
-   111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,112, 97,116,104, 95,116,
-   101,120,116,102,105,101,108,100, 32, 32, 32, 32, 34, 32, 44, 32,112, 97,116,104, 95,116,101,120,116,
-   102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32, 32, 32, 40, 34,112, 97,117,
-   115,101, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,112, 97,117,115,101, 95,
-    98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,102,111,
-   114,119, 97,114,100, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 34, 32, 44, 32,102,111,114,119, 97,
-   114,100, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,108,
-   111,119,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 34, 32, 44, 32,108,111,119,101,
-   114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40, 34,
-   104,105,103,104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 34, 32, 44, 32,104,105,103,
-   104,101,114, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32, 32, 32, 32, 40,
-    34,116,105,109,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 34, 32, 44, 32,116,105,
-   109,101, 95,116,101,120,116,102,105,101,108,100, 32, 32, 32, 32, 41, 32, 44, 13, 10, 13, 10, 32, 32,
-    32, 32, 40, 34, 99, 97,108, 99, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 34, 32, 44,
-    32, 99, 97,108, 99, 95, 98,117,116,116,111,110, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10, 32,
-    32, 32, 32, 40, 34, 99, 97,108, 99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 34, 32,
-    44, 32, 99, 97,108, 99, 95,105,110,112,117,116, 32, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13, 10,
-    32, 32, 32, 32, 40, 34, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 34,
-    32, 44, 32, 99, 97,108, 99, 95,114,101,115,117,108,116, 32, 32, 32, 32, 32, 32, 32, 41, 32, 44, 13,
-    10, 13, 10, 32, 32, 32, 32, 40, 34,115,116, 97,116,117,115, 95, 98, 97,114, 32, 32, 32, 32, 32, 32,
-    32, 32, 34, 32, 44, 32,115,116, 97,116,117,115, 95, 98, 97,114, 32, 32, 32, 32, 32, 32, 32, 32, 41,
-    32, 59, 13, 10, 13, 10, 13, 10,108,111,119,101,114, 95,112,101,114,105,111,100, 32, 32, 61, 32, 32,
-    84,105,109,101,114, 80,101,114,105,111,100, 32, 45, 32, 50, 53, 59, 13, 10,104,105,103,104,101,114,
-    95,112,101,114,105,111,100, 32, 61, 32, 32, 84,105,109,101,114, 80,101,114,105,111,100, 32, 43, 32,
-    50, 53, 59, 13, 10, 13, 10, 0
+   L"result;\r\n"
+    "\r\n"
+    "name = \"User_Interface_Definition_Text\";\r\n"
+    "\r\n"
+    "\r\n"
+    "wh = MainWindowWidthHeight;\r\n"
+    "w = wh[0];\r\n"
+    "h = wh[1];\r\n"
+    "\r\n"
+    "h1 =100;    # height of 1st layer\r\n"
+    "h2 =  0;    # height of 2nd layer\r\n"
+    "h3 = 30;    # height of 3rd layer\r\n"
+    "h4 =  0;    # height of 4th layer\r\n"
+    "h5 = 20;    # height of 5th layer\r\n"
+    "\r\n"
+    "y5 = h -h5; # y_start of 5th layer\r\n"
+    "y4 = y5-h4; # y_start of 4th layer\r\n"
+    "y3 = y4-h3; # y_start of 3rd layer\r\n"
+    "y2 = y3-h2; # y_start of 2nd layer\r\n"
+    "y1 = y2-h1; # y_start of 1st layer\r\n"
+    "\r\n"
+    "a = 60;\r\n"
+    "\r\n"
+    "\r\n"
+    "main_textfield  = {0, 0, w, y1};\r\n"
+    "\r\n"
+    "eval_button     = {   0, y1,   30   , h1};\r\n"
+    "mesg_textfield  = {  30, y1, w-30-20, h1};\r\n"
+    "lock_button     = {w-20, y1,      20, h1};\r\n"
+    "\r\n"
+    "prev_button     = { 0a, y2,  a , h2};\r\n"
+    "next_button     = { 1a, y2,  a , h2};\r\n"
+    "delete_button   = { 2a, y2,  a , h2};\r\n"
+    "clear_button    = { 3a, y2,  a , h2};\r\n"
+    "path_textfield  = { 4a, y2,w-4a, h2};\r\n"
+    "\r\n"
+    "pause_button    = { 0a, y3,  a , h3};\r\n"
+    "forward_button  = { 1a, y3,  a , h3};\r\n"
+    "lower_button    = { 2a, y3,  a , h3};\r\n"
+    "higher_button   = { 3a, y3,  a , h3};\r\n"
+    "time_textfield  = { 4a, y3,w-4a, h3};\r\n"
+    "\r\n"
+    "calc_button     = { 0, y4,    a     , h4};\r\n"
+    "calc_input      = { a, y4, (w-a)*3/5, h4};\r\n"
+    "calc_result     = { b, y4, (w-a)*2/5, h4};\r\n"
+    "  private b = a+(w-a)*3/5;\r\n"
+    "\r\n"
+    "status_bar      = {0, y5, w, h5};\r\n"
+    "\r\n"
+    "\r\n"
+    "private result =\r\n"
+    "    (\"main_textfield\" , main_textfield) ,\r\n"
+    "\r\n"
+    "    (\"eval_button   \" , eval_button   ) ,\r\n"
+    "    (\"mesg_textfield\" , mesg_textfield) ,\r\n"
+    "    (\"lock_button   \" , lock_button   ) ,\r\n"
+    "\r\n"
+    "    (\"prev_button   \" , prev_button   ) ,\r\n"
+    "    (\"next_button   \" , next_button   ) ,\r\n"
+    "    (\"delete_button \" , delete_button ) ,\r\n"
+    "    (\"clear_button  \" , clear_button  ) ,\r\n"
+    "    (\"path_textfield\" , path_textfield) ,\r\n"
+    "\r\n"
+    "    (\"pause_button  \" , pause_button  ) ,\r\n"
+    "    (\"forward_button\" , forward_button) ,\r\n"
+    "    (\"lower_button  \" , lower_button  ) ,\r\n"
+    "    (\"higher_button \" , higher_button ) ,\r\n"
+    "    (\"time_textfield\" , time_textfield) ,\r\n"
+    "\r\n"
+    "    (\"calc_button   \" , calc_button   ) ,\r\n"
+    "    (\"calc_input    \" , calc_input    ) ,\r\n"
+    "    (\"calc_result   \" , calc_result   ) ,\r\n"
+    "\r\n"
+    "    (\"status_bar    \" , status_bar    ) ;\r\n"
+    "\r\n"
+    "\r\n"
+    "lower_period  =  TimerPeriod - 25;\r\n"
+    "higher_period =  TimerPeriod + 25;\r\n"
+    "\r\n";
 #endif
-};
 
-static const wchar base_rodt_rodt[] = {
-    48, 59, 13, 10, 13, 10,110, 97,109,101, 32, 61, 32, 34, 82,104,121,115, 99,105,116,108,101,109, 97,
-    95, 79, 98,106,101, 99,116,115, 95, 68,101,102,105,110,105,116,105,111,110, 95, 84,101,120,116, 34,
-    32, 59, 13, 10, 13, 10,112,114,105,118, 97,116,101, 13, 10,109,101,115,115, 97,103,101, 32, 61, 32,
-    34, 13, 10, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,108,101,102,116, 45, 99,108,105, 99,107, 32,
-   111,110, 32, 97, 32,103,114, 97,112,104, 13, 10, 13, 10, 32, 32, 32, 32, 32, 32,111,114, 32, 32,114,
-   105,103,104,116, 45, 99,108,105, 99,107, 32,111,110, 32, 97, 32, 99, 97,109,101,114, 97, 13, 10, 13,
-    10, 32, 77,111,114,101, 32, 97,116, 32,104,116,116,112, 58, 47, 47,114,104,121,115, 99,105,116,108,
-   101,109, 97, 46, 99,111,109, 47, 97,112,112,108,105, 99, 97,116,105,111,110,115, 47,103,114, 97,112,
-   104, 45,112,108,111,116,116,101,114, 45, 51,100, 13, 10, 34, 59, 13, 10, 13, 10,112,114,105,118, 97,
-   116,101, 13, 10, 92,114,102,101,116,123, 48, 59, 13, 10, 32,110, 97,109,101, 32, 61, 32, 34, 79, 98,
-   106,101, 99,116, 34, 59, 13, 10, 32,111,114,105,103,105,110, 32, 61, 32, 32, 40, 48, 44, 48, 44, 48,
-    41, 32, 59, 13, 10, 32, 97,120,101,115, 32, 61, 32, 32, 40, 49, 44, 48, 44, 48, 41, 44, 40, 48, 44,
-    49, 44, 48, 41, 44, 40, 48, 44, 48, 44, 49, 41, 32, 59, 13, 10,125, 13, 10, 13, 10, 92,114,102,101,
-   116,123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,106,101, 99,116, 34, 59, 13, 10,
-    32,110, 97,109,101, 32, 61, 32, 34, 67, 97,109,101,114, 97, 34, 59, 13, 10, 32,114,101, 99,116, 97,
-   110,103,108,101, 32, 61, 32,123, 48, 44, 48, 44, 52, 48, 48, 44, 51, 48, 48, 44, 48, 44, 48,125, 59,
-    13, 10, 32,122,111,111,109, 32, 61, 32, 32, 49, 59, 13, 10,125, 13, 10, 13, 10, 92,114,102,101,116,
-   123, 48, 59, 13, 10, 32,116,121,112,101, 32, 61, 32, 34, 79, 98,106,101, 99,116, 34, 59, 13, 10, 32,
-   110, 97,109,101, 32, 61, 32, 34, 83,117,114,102, 97, 99,101, 34, 59, 13, 10, 32,102,117,110, 99,116,
-   105,111,110, 40,120, 44,121, 44,122, 41, 32, 61, 32, 32, 48, 59, 13, 10, 32, 99,111,108,111,117,114,
-    40,120, 44,121, 44,122, 41, 32, 61, 32, 32,123,120, 44,121, 44,122, 44, 49,125, 59, 13, 10, 32, 98,
-   111,117,110,100, 97,114,121, 32, 61, 32, 32,123, 48, 44, 49, 44, 48, 44, 49, 44, 48, 44, 49,125, 59,
-    13, 10, 32, 97, 99, 99,117,114, 97, 99,121, 32, 61, 32, 32, 49, 59, 13, 10,125, 13, 10, 0
-};
+static const wchar base_rodt_rodt[] =
+   L"0;\r\n"
+    "\r\n"
+    "name = \"Rhyscitlema_Objects_Definition_Text\";\r\n"
+    "\r\n"
+    "private\r\n"
+    "message = \"\r\n"
+    "           left-click on a graph\r\n"
+    "\r\n"
+    "      or  right-click on a camera\r\n"
+    "\r\n"
+    " More at http://rhyscitlema.com/applications/graph-plotter-3d\r\n"
+    "\";\r\n"
+    "\r\n"
+    "private\r\n"
+    "\\rfet{0;\r\n"
+    " name = \"Object\";\r\n"
+    " origin =  (0,0,0) ;\r\n"
+    " axes =  (1,0,0),(0,1,0),(0,0,1) ;\r\n"
+    "}\r\n"
+    "\r\n"
+    "\\rfet{0;\r\n"
+    " type = \"Object\";\r\n"
+    " name = \"Camera\";\r\n"
+    " rectangle = {0,0,400,300,0,0};\r\n"
+    " zoom =  1;\r\n"
+    "}\r\n"
+    "\r\n"
+    "\\rfet{0;\r\n"
+    " type = \"Object\";\r\n"
+    " name = \"Surface\";\r\n"
+    " function(x,y,z) =  0;\r\n"
+    " colour(x,y,z) =  {x,y,z,1};\r\n"
+    " boundary =  {0,1,0,1,0,1};\r\n"
+    " accuracy =  1;\r\n"
+    "}\r\n";
+
+static const wchar* get_base_uidt() { return base_uidt_rfet; }
+static const wchar* get_base_rodt() { return base_rodt_rodt; }
+

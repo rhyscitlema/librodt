@@ -12,13 +12,13 @@ void timer_pause (bool pause);
 
 bool timer_paused ();
 
-bool timer_set_period (int period); // in millisecodns
+value timer_set_period (value stack); // period = vPrev(stack);
 
-void timer_set_time (value time);
+int timer_get_period (); // note: period in millisecodns
 
-int timer_get_period ();
+value timer_set_time (value stack); // time = vPrev(stack);
 
-value timer_get_time ();
+value timer_get_time (value stack);
 
 
 void timer_install_do ();

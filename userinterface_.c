@@ -10,8 +10,6 @@
 #include <surface.h>
 #include <userinterface.h>
 
-#define errormessage errorMessage()
-
 
 void display_main_text (const wchar* text)
 {
@@ -23,68 +21,88 @@ void display_main_text (const wchar* text)
 
 void display_message (const wchar* message)
 {
-    puts2(message);
+    if(message) puts2(message);
     userinterface_set_text (UI_MESG_TEXT, message);
 }
 
 
-static bool calculator_evaluate (const wchar* source, Container** rfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
+static value calculator_evaluate (value stack, const wchar* source, Container** rfet_ptr, enum UI_ITEM input, enum UI_ITEM output)
 {
-    assert(rfet_ptr!=NULL);
+    assert(rfet_ptr && stack);
     Container* rfet;
-    if(source)
+    const wchar* out = NULL;
+    if(!strEnd2(source))
     {
         const wchar* entry = userinterface_get_text(input);
-        lchar* text=NULL; astrcpy32(&text, entry);
-        set_line_coln_source(text, 1, 1, source);
+        Str3 text = astrcpy32(C37(NULL), entry, source);
 
-        rfet = (Container*)rfet_parse(*rfet_ptr, text); text=NULL;
+        rfet = (Container*)rfet_parse(stack, *rfet_ptr, text); text=C37(NULL);
         if(rfet)
-        {   *rfet_ptr = rfet;
+        {
+            *rfet_ptr = rfet;
             if(!rfet->owner)
                 rfet->owner = rfet_ptr;
-        }
-        else { userinterface_set_text(output, errormessage); return false; }
 
-        // skip rfet_evaluate(), as it will later
-        // be called via calculator_evaluate_main(0);
-        if(input==UI_MAIN_TEXT) return true;
-    }
-    rfet = *rfet_ptr;
-    if(rfet != NULL)
-    {
-        if(rfet_evaluate(rfet,NULL,NULL))
-        {   if(rfet_commit_replacement(rfet))
-                userinterface_set_text(input, rfet_get_container_text(rfet));
-            VstToStr(mainStack(), errormessage, 4, -1, -1, -1);
+            // skip rfet_evaluate(), as it will later be called via
+            // calculator_evaluate_main(0) in userinterface_process().
+            if(input==UI_MAIN_TEXT) rfet=NULL;
+
+            stack = setBool(stack, true);
         }
-        userinterface_set_text(output, errormessage);
+        else
+        {   out = getMessage(vGet(stack));
+            stack = vnext(stack); // go to after VT_MESSAGE
+            assert(VERROR(stack));
+        }
     }
-    return true;
+    else rfet = *rfet_ptr;
+
+    if(rfet)
+    {   stack = rfet_evaluate(stack, rfet, NULL);
+        if(VERROR(stack))
+            out = getMessage(vGetPrev(stack)); // get error message
+        else
+        {
+            if(rfet_commit_replacement(stack, rfet))
+            {
+                rfet_get_container_text(stack, rfet);
+                out = getStr2(vGet(stack));
+                userinterface_set_text(input, out);
+            }
+            stack = VstToStr(stack, PUT_NEWLINE|0, -1, -1); // see _math.h
+            out = getStr2(vGetPrev(stack)); // get final result
+        }
+    }
+    if(out) userinterface_set_text(output, out);
+    return stack;
 }
 
        Container* main_entry_rfet = NULL;
 static Container* calculator_rfet = NULL;
 
-bool calculator_evaluate_main (const wchar* source)
-{ return calculator_evaluate (source, &main_entry_rfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
+value calculator_evaluate_main (value stack, const wchar* source)
+{ return calculator_evaluate (stack, source, &main_entry_rfet, UI_MAIN_TEXT, UI_MESG_TEXT); }
 
-bool calculator_evaluate_calc (bool parse)
-{ const wchar* source = parse ? CST21(TEXT_CALC) : NULL;
-  return calculator_evaluate (source, &calculator_rfet, UI_CALC_INPUT, UI_CALC_RESULT); }
+value calculator_evaluate_calc (value stack, bool parse)
+{
+  if(stack==NULL) stack = stackArray();
+  const wchar* source = C21(parse ? TEXT_CALC : NULL);
+  return calculator_evaluate (stack, source, &calculator_rfet, UI_CALC_INPUT, UI_CALC_RESULT);
+}
 
 
 void display_time_text()
 {
-    value vst[3];
-    vst[0+0] = setSepto2(3,2);
-    vst[1+0] = setSmaInt(timer_get_period());
-    vst[1+1] = timer_get_time();
-    VstToStr(vst, errormessage, 0,-1,-1,-1);
-    userinterface_set_text(UI_TIME_TEXT, errormessage);
+    uint32_t V[1000], *v=V;
+    v = setSmaInt(v, timer_get_period());
+    v = timer_get_time(v);
+    v = tovector(v, 2);
+    v = VstToStr(v, 0,-1,-1);
+    const wchar* out = getStr2(vGetPrev(v));
+    userinterface_set_text(UI_TIME_TEXT, out);
 }
 
-static void userinterface_process ()
+static void userinterface_process (bool skipmain)
 {
     switch(headMouse->showSignature)
     {
@@ -92,12 +110,12 @@ static void userinterface_process ()
         case 2: display_main_text(NULL); break;
     }
     headMouse->showSignature = 0;
+    value stack = stackArray();
 
-    if(errormessage[0]==0 && !headMouse->clickedObject)
-     calculator_evaluate_main(0);
-    calculator_evaluate_calc(0);
+    if(!skipmain)
+     calculator_evaluate_main(stack, NULL);
+    calculator_evaluate_calc(stack, false);
     display_time_text();
-    errormessage[0]=0; // note: strategic code position!
 
     if(!headMouse->ButtonBefore[Key_Space] && headMouse->Button[Key_Space]) tools_do_pause(!timer_paused());
 
@@ -157,11 +175,11 @@ static mthread_signal signal = NULL;
 static mthread_signal finish = NULL;
 
 
-static void objects_do_process (bool update)
+static bool objects_do_process (bool update)
 {
     Object *object, *next;
 
-    object = (Object*)list_head(camera_list);
+    object = (Object*)list_head(camera_list());
     for( ; object != NULL; object = next)
     {
         next = (Object*)list_next(object);
@@ -169,7 +187,7 @@ static void objects_do_process (bool update)
             object->destroy(object);
         else object->process(object, update);
     }
-    object = (Object*)list_head(surface_list);
+    object = (Object*)list_head(surface_list());
     for( ; object != NULL; object = next)
     {
         next = (Object*)list_next(object);
@@ -177,6 +195,7 @@ static void objects_do_process (bool update)
             object->destroy(object);
         else object->process(object, update);
     }
+    return true;
 }
 
 
@@ -205,23 +224,23 @@ static void* graphplotter_draw (void* argument)
         void* camera;
         draw_request_count=0;
 
-        for(camera = list_head(camera_list); camera != NULL; camera = list_next(camera))
+        for(camera = list_head(camera_list()); camera != NULL; camera = list_next(camera))
         {   draw_request_count++;
             camera_paint_initialise((Camera*)camera);
         }
 
-        for(camera = list_head(camera_list); camera != NULL; camera = list_next(camera))
+        for(camera = list_head(camera_list()); camera != NULL; camera = list_next(camera))
         {
-            object = (Object*)list_head(surface_list);
+            object = (Object*)list_head(surface_list());
             for( ; object != NULL; object = (Object*)list_next(object))
                 object->paint(object, (Camera*)camera);
 
-            object = (Object*)list_head(camera_list);
+            object = (Object*)list_head(camera_list());
             for( ; object != NULL; object = (Object*)list_next(object))
                 object->paint(object, (Camera*)camera);
         }
 
-        for(camera = list_head(camera_list); camera != NULL; camera = list_next(camera))
+        for(camera = list_head(camera_list()); camera != NULL; camera = list_next(camera))
             camera_paint_finalise((Camera*)camera);
     #endif
     }
@@ -234,12 +253,12 @@ static void* graphplotter_draw (void* argument)
 void userinterface_update()
 {
     if(!mthread_mutex_lock(mutex,false)) return;
-    evaluation_instance++;
+    evaluation_instance(true);
     while(true)
     {
         graphplotter_update_repeat = false;
-        objects_do_process(true); // will 'use' user inputs
-        userinterface_process();  // will clear user inputs
+        bool ok = objects_do_process(true); // will 'use' user inputs
+        userinterface_process(!ok);         // will clear user inputs
         if(!graphplotter_update_repeat) break;
     }
     if(draw_request_count<=0)

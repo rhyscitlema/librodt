@@ -8,7 +8,6 @@
 #include <object.h>
 #include <camera.h>
 #include <surface.h>
-//#include <textobj.h>
 #include <userinterface.h>
 #include <tools.h>
 
@@ -27,21 +26,13 @@ void object_process (Object *obj, bool update)
     Camera *cmr;
     Mouse *mouse;
     Component *component;
+    Container *caller = obj->container;
+    uint32_t stack[100000]; // TODO: inside object_process(): what if stack overflows
+    value v;
 
     if(!obj) return;
-    assert(obj->container!=NULL);
+    assert(caller!=NULL);
     mouse = headMouse;
-
-    GeneralArg garg = {
-        .caller = obj->container,
-        .message = errorMessage(),
-        .argument = NULL
-    };
-    ExprCallArg eca = {
-        .garg = &garg,
-        .expression = NULL,
-        .stack = mainStack()
-    };
 
     if(update)
     {
@@ -65,26 +56,29 @@ void object_process (Object *obj, bool update)
         }
         if(CancelUserInput(mouse))
         {
-            if(obj->container->replacement_count > 0)
-            {  obj->container->replacement_count = 0;
-               tools_do_eval(NULL);
-               graphplotter_update_repeat = true;
+            if(replacement(stack, caller, REPL_COUNT) > 0)
+            {
+                replacement(stack, caller, REPL_CANCEL);
+                tools_do_eval(NULL);
+                graphplotter_update_repeat = true;
             }
         }
         else if(user_input_allowed)
         {
-            replacement_container = obj->container;
-            component = (Component*)avl_min(&obj->container->inners);
+            component = (Component*)avl_min(&caller->inners);
             for( ; component != NULL; component = (Component*)avl_next(component))
-                if(!component_evaluate(eca, component, 0)) ;//display_message(eca.garg->errormessage); // TODO: error ignored due to call without proper argument value structure
-            replacement_container = NULL;
+            {
+                if(!*c_para(component) // if is a variable
+                && VERROR(component_evaluate(stack, caller, component, NULL)))
+                    display_message(getMessage(stack));
+            }
 
-            if(obj->container->replacement_count > 0)
+            if(replacement(stack, caller, REPL_COUNT) > 0)
             {
                 if(mouse->buttonPressed)
                 {
                     mouse->showSignature = 1;
-                    replacement_commit(obj->container);
+                    replacement(stack, caller, REPL_COMMIT);
                 }
                 graphplotter_update_repeat = true;
             }
@@ -92,27 +86,21 @@ void object_process (Object *obj, bool update)
     }
     else
     {
-        eca.stack += stackSize()/2;
-        eca.garg->message += stackSize()/2;
-        wchar* errmsg = eca.garg->message;
+        v = component_evaluate (stack, caller, obj->origin_comp, NULL);
+        if(!floatFromValue (v, 3, 1, obj->origin, "object origin"))
+            display_message (getMessage(stack));
 
-        if(!component_evaluate(eca, obj->origin_comp, VST31)
-        || !floatFromVst (obj->position, eca.stack, 3, errmsg, "object position"))
-            display_message (errmsg);
+        v = component_evaluate (stack, caller, obj->axes_comp, NULL);
+        if(!floatFromValue (v, 3, 3, (SmaFlt*)obj->axes, "object axes"))
+            display_message (getMessage(stack));
 
-        if(!component_evaluate (eca, obj->axes_comp, VST33)
-        || !floatFromVst (obj->axes[0], MVE(eca.stack,0,3), 3, errmsg, "object x-axis")
-        || !floatFromVst (obj->axes[1], MVE(eca.stack,1,3), 3, errmsg, "object y-axis")
-        || !floatFromVst (obj->axes[2], MVE(eca.stack,2,3), 3, errmsg, "object z-axis"))
-            display_message (errmsg);
+        v = component_evaluate (stack, caller, obj->boundary_comp, NULL);
+        if(!floatFromValue (v, 6, 1, obj->boundary, "object boundary"))
+            display_message (getMessage(stack));
 
-        if(!component_evaluate (eca, obj->boundary_comp, VST61)
-        || !floatFromVst (obj->boundary, eca.stack, 6, errmsg, "object boundary"))
-            display_message (errmsg);
-
-        if(!component_evaluate (eca, obj->variable_comp, VST11))
-            display_message (errmsg);
-        else floatFromVst (obj->variable , eca.stack, 1, errmsg, NULL);
+        v = component_evaluate (stack, caller, obj->variable_comp, NULL);
+        if(!floatFromValue (v, 1, 1, obj->variable, C13(c_name(obj->variable_comp)) ))
+            display_message (getMessage(stack));
     }
 }
 
@@ -144,7 +132,7 @@ static void cameraLocal_to_World_to_ObjectLocal (Object *obj, Camera *cmr)
     cmr->paintAxes[2][1] = dotproduct (obj->axes[2], cmr->obj.axes[1]);
     cmr->paintAxes[2][2] = dotproduct (obj->axes[2], cmr->obj.axes[2]);
 
-    substractvectors(temp, cmr->obj.position, obj->position);
+    substractvectors(temp, cmr->obj.origin, obj->origin);
     cmr->paintPost[0] = dotproduct (obj->axes[0], temp) - cmr->paintAxes[0][2]*zoom;
     cmr->paintPost[1] = dotproduct (obj->axes[1], temp) - cmr->paintAxes[1][2]*zoom;
     cmr->paintPost[2] = dotproduct (obj->axes[2], temp) - cmr->paintAxes[2][2]*zoom;
@@ -158,14 +146,14 @@ static bool putLocalPixel (const Object *obj, const Camera *cmr, SmaFlt x, SmaFl
     SmaFlt t, temp[3], temp2[3], zoom = *cmr->obj.variable;
 
     // Get CameraOrigin CaO with an offset of camera_zoom
-    temp2[0] = cmr->obj.position[0] - cmr->obj.axes[2][0]*zoom;
-    temp2[1] = cmr->obj.position[1] - cmr->obj.axes[2][1]*zoom;
-    temp2[2] = cmr->obj.position[2] - cmr->obj.axes[2][2]*zoom;
+    temp2[0] = cmr->obj.origin[0] - cmr->obj.axes[2][0]*zoom;
+    temp2[1] = cmr->obj.origin[1] - cmr->obj.axes[2][1]*zoom;
+    temp2[2] = cmr->obj.origin[2] - cmr->obj.axes[2][2]*zoom;
 
     // Local_To_World coordinate transformation
-    temp[0] = obj->position[0]  +  obj->axes[0][0]*x + obj->axes[1][0]*y + obj->axes[2][0]*z;
-    temp[1] = obj->position[1]  +  obj->axes[0][1]*x + obj->axes[1][1]*y + obj->axes[2][1]*z;
-    temp[2] = obj->position[2]  +  obj->axes[0][2]*x + obj->axes[1][2]*y + obj->axes[2][2]*z;
+    temp[0] = obj->origin[0]  +  obj->axes[0][0]*x + obj->axes[1][0]*y + obj->axes[2][0]*z;
+    temp[1] = obj->origin[1]  +  obj->axes[0][1]*x + obj->axes[1][1]*y + obj->axes[2][1]*z;
+    temp[2] = obj->origin[2]  +  obj->axes[0][2]*x + obj->axes[1][2]*y + obj->axes[2][2]*z;
 
     // Get line direction vector, of the line joining CaO and (x,y,z).
     temp[0] = temp[0] - temp2[0];

@@ -47,19 +47,17 @@ void mouse_enable (Mouse *mouse, bool enable)
 void mouse_init ()
 {
     if(headMouse) return;
-    Mouse *mouse = _malloc(sizeof(Mouse));
+    Mouse *mouse = _malloc(sizeof(Mouse), "Mouse");
     memset(mouse, 0, sizeof(Mouse));
     mouse->ID = 1;
     headMouse = mouse;
     mouse_enable(headMouse, true);
-    memory_alloc("Mouse");
 }
 
 void mouse_clean ()
 {
-    if(!headMouse) return;
-    _free(headMouse); headMouse=NULL;
-    memory_freed("Mouse");
+    _free(headMouse, "Mouse");
+    headMouse = NULL;
 }
 
 

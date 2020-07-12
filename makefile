@@ -23,7 +23,7 @@ LIBALGO = ../algorithms
 LIB_STD = ../lib_std
 LIBRFET = ../librfet
 LIBRODT = .
-LIBRWIF = ../read_write_image_file
+LIBRWIF = ../../../read_write_image_file
 
 #-------------------------------------------------
 
@@ -40,6 +40,8 @@ CC_FLAGS = -I$(LIBALGO) \
            -I$(LIBRODT) \
            -I$(LIBRWIF) \
            -Wall \
+           -std=c99 \
+           -pedantic \
            $(CFLAGS)
 
 # archiver flags

@@ -9,7 +9,7 @@
 
 
 static List _surface_list = {0};
-List* surface_list = &_surface_list;
+List* surface_list() { return &_surface_list; }
 
 
 static bool surface_shootPixel (Object *obj, void* camera, int xp, int yp);
@@ -25,26 +25,21 @@ void surface_process (Object *obj, bool update)
 }
 
 
-
 static bool surface_destroy (Object *obj)
 {
     Surface *surface = (Surface*)obj;
     if(obj==NULL) return false;
     if(obj->container && !inherits_remove(obj->container)) return false;
-    list_delete(surface_list, surface);
+    list_delete(surface_list(), surface);
     memory_freed("Surface");
     return true;
 }
 
 
-
-bool surface_set (Container* container)
+bool surface_set (value stack, Container* container)
 {
     Component *origin_comp, *axes_comp, *boundary_comp, *variable_comp, *function, *colour;
-    Surface *surface = (Surface*)list_find(surface_list, NULL, object_find, container);
-
-    GeneralArg garg = { .caller = container, .message = errorMessage(), .argument = NULL };
-    ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
+    Surface *surface = (Surface*)list_find(surface_list(), NULL, object_find, container);
 
     Component *comp;
     GET_COMPONENT ("origin"  , origin_comp  ,   0  , VST31)
@@ -59,7 +54,7 @@ bool surface_set (Container* container)
     {
         memory_alloc("Surface");
         surface = (Surface*)list_new(NULL, sizeof(Surface));
-        list_head_push(surface_list, surface);
+        list_head_push(surface_list(), surface);
 
         obj = (Object*)surface;
         obj->container = container;
@@ -79,7 +74,6 @@ bool surface_set (Container* container)
 }
 
 
-
 #define CHECK_BOUNDARY(x,a,b,c) \
     while(true) /* not a loop */ \
     {   s=A[a][x]; \
@@ -90,21 +84,25 @@ bool surface_set (Container* container)
     }
 
 #define ComputeFOFT \
-    PO.point[1+0] = setSmaFlt(cmrPosition[0] + t * cmrPixelDir[0]); \
-    PO.point[1+1] = setSmaFlt(cmrPosition[1] + t * cmrPixelDir[1]); \
-    PO.point[1+2] = setSmaFlt(cmrPosition[2] + t * cmrPixelDir[2]); \
-    if(!expression_evaluate(f_eca)) i=0; \
-    else { i=1; f_of_t = getSmaFlt(toFlt(*f_eca.stack)); }
+    PO.point[0] = cmrPosition[0] + t * cmrPixelDir[0]; \
+    PO.point[1] = cmrPosition[1] + t * cmrPixelDir[1]; \
+    PO.point[2] = cmrPosition[2] + t * cmrPixelDir[2]; \
+    v = stack; \
+    v = setSmaFlt(v, PO.point[0]); \
+    v = setSmaFlt(v, PO.point[1]); \
+    v = setSmaFlt(v, PO.point[2]); \
+    v = operations_evaluate(P, oper_function); \
+    if(VERROR(v)) i=0; \
+    else { i=1; f_of_t = getSmaFlt(vGetPrev(toFlt(v))); }
 
 #define LIM (1/(SmaFlt)(1<<10))
 
-#ifndef _WINDOWS
-#define equal(a,b) (a==b)
-#else
+#ifdef WIN32
 // using (a==b) sometimes fails for an optimized compilation on MinGW
 #define equal(a,b) (*(unsigned long long*)(&a) == *(unsigned long long*)(&b))
+#else
+#define equal(a,b) (a==b)
 #endif
-
 
 
 static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
@@ -130,19 +128,19 @@ static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
     PixelObject PO = {0};
     PO.object = obj;
 
+    const_value oper_function = c_oper(surface->function);
+    const_value oper_colour   = c_oper(surface->colour);
+    uint32_t stack[100000];
+    value v = stack;
+    value P = stack + 5*3 + 2*3;
 
-    GeneralArg garg = {
-        .caller = obj->container,
-        .message = errorMessage() + stackSize()/2,
-        .argument = PO.point
-    };
-    ExprCallArg f_eca = {
-        .garg = &garg,
-        .expression = c_root(surface->function),
-        .stack = mainStack() + stackSize()/2
-    };
-    ExprCallArg c_eca = f_eca;
-    c_eca.expression = c_root(surface->colour);
+    SetPtr(P-(0+1)*2, v); v = setSmaFlt(v, PO.point[0]);
+    SetPtr(P-(1+1)*2, v); v = setSmaFlt(v, PO.point[1]);
+    SetPtr(P-(2+1)*2, v); v = setSmaFlt(v, PO.point[2]);
+    memset(P, 0, sizeof(OperEval));
+    P[0] = 3;
+    P[1] = ~0;
+    SetPtr(P+6, surface->obj.container); // set caller container
 
 
     Sx = cmr->storeX[xp];
@@ -206,13 +204,13 @@ static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
 
     f_of_t=0;
     low=high=0;
-    vst_shift(PO.point, VST31);
     s = (u-t) / obj->variable[0];
+    SmaFlt PIXELSIZE = 1/(SmaFlt)PixelsPUL;
     if(s<PIXELSIZE) s=PIXELSIZE;
     ComputeFOFT
     prev = f_of_t;
 
-    while(t<=u+PIXELSIZE) // +0.001 to deal with t+=s accuracy errors
+    while(t<=u+PIXELSIZE) // +PIXELSIZE to deal with t+=s accuracy errors
     {
         bool found=false;
         if(i==0);
@@ -253,9 +251,15 @@ static bool surface_shootPixel (Object *obj, void *camera, int xp, int yp)
 
         if(found)
         {
-            if(!expression_evaluate(c_eca)) { display_message(c_eca.garg->message); tools_do_pause(true); return 0; }
+            v = operations_evaluate(P, oper_colour);
+            value y = vPrev(v);
+            if(!floatFromValue(v, 4, 1, PO.colour, "surface colour"))
+            {
+                display_message(getMessage(vGet(y)));
+                tools_do_pause(true);
+                return 0;
+            }
             PO.distance = t;
-            vst_shift(PO.colour, c_eca.stack);
             if(camera_putpixel(cmr, pixel, &PO)) break;
         }
 

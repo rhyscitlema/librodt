@@ -2,13 +2,12 @@
     getimage.c
 */
 
-#include <_string.h>
-#include <_stdio.h>
-#include <expression.h>
-
-#include <avl.h>
+#include <getimage.h>
 #include <rwif.h>
-#include <malloc.h> // used by free()
+#include <avl.h>
+#include <_stdio.h>
+#include <_string.h>
+#include <expression.h>
 
 
 
@@ -17,8 +16,7 @@ typedef struct _Image
     const wchar* fileName;
 } Image;
 
-static AVLT _images = {0};
-static AVLT *images = &_images;
+static AVLT images = {0};
 
 static int node_compare (const void* a, const void* b, const void* arg)
 { return strcmp22( ((const Image*)a)->fileName, ((const Image*)b)->fileName ); }
@@ -28,110 +26,103 @@ static int node_compare (const void* a, const void* b, const void* arg)
 /* on success: return Image* of loaded image file.
  * on failure: update errormessage and return NULL.
  */
-static Image* load_image_file (const wchar* fileName, wchar* errormessage)
+static Image* load_image_file (value stack, const wchar* fileName)
 {
     Image img={0}; img.fileName = fileName;
-    Image* image = avl_do(AVL_FIND, images, &img, 0, NULL, node_compare);
+    Image* image = avl_do(AVL_FIND, &images, &img, 0, NULL, node_compare);
     if(image) return image;
 
-    const char* filename = CST12(add_path_to_file_name(NULL, fileName));
+    const char* filename = C12(add_path_to_file_name(fileName, (Str2)stack));
     if(!read_image_file(filename, &img.data))
-    { strcpy21(errormessage, rwif_errormessage); return NULL; }
+    {
+        setError(stack, C21(rwif_errormessage));
+        return NULL;
+    }
+    else memory_alloc("Image");
 
-    memory_alloc("Image");
     image = (Image*)avl_new(NULL, sizeof(Image) + (strlen2(fileName)+1)*sizeof(wchar) );
+    strcpy22((wchar*)(image+1), fileName); // copy fileName to Image structure
     image->fileName = (wchar*)(image+1);
-    strcpy22((wchar*)(image+1), fileName);
     image->data = img.data;
 
-    avl_do(AVL_PUT, images, image, 0, NULL, node_compare);
+    avl_do(AVL_PUT, &images, image, 0, NULL, node_compare);
     return image;
 }
 
-
-
-bool get_image_width_height (ExprCallArg eca)
+void unload_images()
 {
-    bool b=false;
-    const Image* image;
-    value* stack = eca.stack;
-    Expression* expression = eca.expression;
-    Expression* head;
-
-    image = (Image*)expression->call_comp;
-    int ind = expression->independent;
-    if(image==NULL || ind==0)
+    Image* image = (Image*)avl_min(&images);
+    for( ; image; image = (Image*)avl_next(image))
     {
-        head = expression->headChild;
-        eca.expression = head;
-        if(!expression_evaluate(eca)) return 0;
-
-        else if(!isString(stack[0]))
-            set_message(eca.garg->message, L"Error in \\1 at \\2:\\3 on '\\4':\r\nArgument must evaluate to a file name.", expression->name);
-
-        image = load_image_file (CST23(getString(stack[0])), eca.garg->message);
-        if(image) expression->call_comp = (Component*)(size_t)image;
-        b=true;
+        memory_freed("Image");
+        clear_image_data(&image->data);
     }
-    if(!image) return 0; // if failed to read the image file
-    stack[0] = setSepto2(3, 2);
-    stack[1] = setSmaInt(image->data.width);
-    stack[2] = setSmaInt(image->data.height);
-    if(b) INDEPENDENT(expression, stack, head->independent);
-    return 1;
+    avl_free(&images);
 }
 
 
 
-bool get_image_pixel_colour (ExprCallArg eca)
+value get_image_width_height (value v)
+{
+    value s = vPrev(v);
+    const_value n = vGet(s);
+    if(!(*n >> 28)) return v;
+    if(!isStr2(n)) return setError(s, L"Argument must evaluate to a string.");
+
+    const Image* image;
+    image = load_image_file(v, getStr2(n));
+    if(!image) return vnext(v); // go to after error message
+
+    v = setSmaInt(s, image->data.width); // starts with s,
+    v = setSmaInt(v, image->data.height);
+    v = tovector(v, 2);
+    return v;
+}
+
+
+
+static long getLong (value v, const_value n)
+{ return getSmaInt(vPrev(_floor(setRef(v,n)))); }
+
+value get_image_pixel_colour (value v)
 {
     long x, y, w, h, B;
     const unsigned char* colour;
+
+    value s = vPrev(v);
+    const_value n = vGet(s);
+
+    if(!(*n >> 28)) return v;
+    value e = check_arguments(s,*n,3); if(e) return e;
+
+    n += 2; // skip vector header
+    if(!isStr2(n)) setError(s, L"First argument must evaluate to a string.");
+
     const Image* image;
-    value* stack = eca.stack;
-
-    Expression* expression = eca.expression;
-    Expression* head = expression->headChild;
-    eca.expression = head;
-    if(!expression_evaluate(eca)) return 0;
-
-    image = (Image*)expression->call_comp;
-    int ind = (head && head->headChild) ? head->headChild->independent : 0;
-    if(image==NULL || ind==0)
-    {
-        wchar* message = eca.garg->message;
-
-        if(!check_first_level(stack, 3, message, expression->name)) return 0;
-
-        else if(!isString(stack[1]))
-            set_message(message, L"Error in \\1 at \\2:\\3 on '\\4':\r\nFirst argument must evaluate to a file name.", expression->name);
-
-        image = load_image_file (CST23(getString(stack[1])), message);
-        if(image) expression->call_comp = (Component*)(size_t)image;
-    }
-    if(!image) return 0; // if failed to read the image file
+    image = load_image_file(v, getStr2(n));
+    if(!image) return vnext(v); // go to after error message
 
     colour = image->data.pixelArray;
     h      = image->data.height;
     w      = image->data.width;
     B      = image->data.bpp/8;
 
-    x = getSmaInt(_floor(stack[2])); x %= w; if(x<0) x += w;
-    y = getSmaInt(_floor(stack[3])); y %= h; if(y<0) y += h;
+    n = vNext(n); x = getLong(v,n); x %= w; if(x<0) x += w;
+    n = vNext(n); y = getLong(v,n); y %= h; if(y<0) y += h;
     colour += (y*w + x)*B;
 
-    stack[0+0] = setSepto2 (5, 4);
-    stack[1+0] = setSmaRa2 (colour[0], 255);
-    stack[1+1] = setSmaRa2 (colour[1], 255);
-    stack[1+2] = setSmaRa2 (colour[2], 255);
-    stack[1+3] = setSmaRa2 ((B==4 ? colour[3] : 255), 255);
-    return 1;
+    const SmaFlt f255 = (SmaFlt)255;
+    v = setSmaFlt (s, colour[0]/f255); // starts with s,
+    v = setSmaFlt (v, colour[1]/f255);
+    v = setSmaFlt (v, colour[2]/f255);
+    v = setSmaFlt (v, (B==4 ? colour[3] : 255)/f255);
+    return tovector(v, 4);
 }
 
 
 
-bool get_image_pixel_matrix (ExprCallArg eca)
+value get_image_pixel_matrix (value v)
 {
-    set_message(eca.garg->message, L"Error in \\1 at \\2:\\3:\r\nOn '\\4': operation not yet available!", eca.expression->name); return 0;
+    return setError(vPrev(v), L"Operation not yet available!");
 }
 

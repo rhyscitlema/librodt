@@ -12,7 +12,7 @@
 
 
 static List _camera_list = {0};
-List* camera_list = &_camera_list;
+List* camera_list() { return &_camera_list; }
 
 
 void camera_paint_initialise (Camera *camera)
@@ -26,7 +26,7 @@ void camera_paint_initialise (Camera *camera)
         for( ; po != NULL; po = next)
         {
             next = po->next;
-            _free(po); memory_freed("PO");
+            _free(po, "PixelObject");
         }
         camera->pixelObject[i] = NULL;
     }
@@ -39,44 +39,44 @@ bool camera_putpixel (Camera *camera, int pixel, const PixelObject* pixelObject)
     PixelObject *PO, *prev, *next;
     assert(camera!=NULL);
 
-    const value* colour = pixelObject->colour;
-    if(getSmaInt(colour[1+0])==0
-    && getSmaInt(colour[1+1])==0
-    && getSmaInt(colour[1+2])==0
-    && getSmaInt(colour[1+3])==0)
-        return false;
+    const SmaFlt* colour = pixelObject->colour;
+    if(!colour[0]
+    && !colour[1]
+    && !colour[2]
+    && !colour[3]) return false;
 
     next = camera->pixelObject[pixel];
     prev = NULL;
     while(next!=NULL && next->distance <  pixelObject->distance)
     {
-        value v = next->colour[1+3]; // get opacity
-        if(IsSmaInt(getType(v)) && getSmaInt(v)==1) return true;
+        SmaFlt v = next->colour[3]; // get opacity
+        if(v==1) return true;
         prev = next;
         next = next->next;
     }
 
-    PO = _malloc(sizeof(PixelObject)); memory_alloc("PO");
+    PO = _malloc(sizeof(PixelObject), "PixelObject");
     *PO = *pixelObject;
     if(prev==NULL) camera->pixelObject[pixel] = PO;
     else prev->next = PO;
     PO->next = next;
 
-    value v = PO->colour[1+3]; // get opacity
-    return (IsSmaInt(getType(v)) && getSmaInt(v)==1);
+    SmaFlt v = PO->colour[3]; // get opacity
+    return v==1;
 }
 
 
 
+static inline int Flt2Int (SmaFlt n) { return (int)(n + ((n>=0) ? +0.000001 : -0.000001)); } // TODO: put this in _floor() or toInt()
+
 void camera_paint_finalise (Camera *camera)
 {
     int i, j;
-    value v;
-    value bg[1+4];
-    const value* fg;
+    SmaFlt v;
+    SmaFlt bg[4];
+    const SmaFlt* fg;
     const PixelObject *PO, *ARR[100];
     if(!camera) return;
-    const value one = setSmaInt(1);
 
     for(i=0; i < camera->XSize * camera->YSize; i++)
     {
@@ -86,25 +86,25 @@ void camera_paint_finalise (Camera *camera)
         for(j=0; PO != NULL; PO = PO->next) ARR[j++] = PO;
 
             fg = ARR[--j]->colour;
-            bg[1+0] = multiply(fg[1+0], fg[1+3]);
-            bg[1+1] = multiply(fg[1+1], fg[1+3]);
-            bg[1+2] = multiply(fg[1+2], fg[1+3]);
-            bg[1+3] =          fg[1+3];
+            bg[0] = fg[0] * fg[3];
+            bg[1] = fg[1] * fg[3];
+            bg[2] = fg[2] * fg[3];
+            bg[3] =         fg[3];
 
         while(j>0)
         {
             fg = ARR[--j]->colour;
-            v = subtract(one, fg[1+3]);
-            bg[1+0] = add(multiply(fg[1+0], fg[1+3]), multiply(multiply(bg[1+0], bg[1+3]), v));
-            bg[1+1] = add(multiply(fg[1+1], fg[1+3]), multiply(multiply(bg[1+1], bg[1+3]), v));
-            bg[1+2] = add(multiply(fg[1+2], fg[1+3]), multiply(multiply(bg[1+2], bg[1+3]), v));
-            bg[1+3] = add(         fg[1+3]          , multiply(         bg[1+3]          , v));
+            v = (1 - fg[3]);
+            bg[0] = fg[0] * fg[3] + bg[0] * bg[3] * v;
+            bg[1] = fg[1] * fg[3] + bg[1] * bg[3] * v;
+            bg[2] = fg[2] * fg[3] + bg[2] * bg[3] * v;
+            bg[3] =         fg[3] +         bg[3] * v;
         }
-        v = setSmaInt(0xFF);
-        camera->pixelColour[i] = (((int)getSmaInt(_floor(multiply(bg[1+0], v))) & 0xFF) <<  0)
-                               + (((int)getSmaInt(_floor(multiply(bg[1+1], v))) & 0xFF) <<  8)
-                               + (((int)getSmaInt(_floor(multiply(bg[1+2], v))) & 0xFF) << 16)
-                               + (((int)getSmaInt(_floor(multiply(bg[1+3], v))) & 0xFF) << 24);
+        v = 0xFF;
+        camera->pixelColour[i] = (( (int)Flt2Int(bg[0] * v) & 0xFF) <<  0)
+                               + (( (int)Flt2Int(bg[1] * v) & 0xFF) <<  8)
+                               + (( (int)Flt2Int(bg[2] * v) & 0xFF) << 16)
+                               + (( (int)Flt2Int(bg[3] * v) & 0xFF) << 24);
     }
     drawing_window_draw (camera->drawing_window);
 }
@@ -119,7 +119,7 @@ static void cameraSizeChange (Camera *camera, int XSize, int YSize)
     if(camera==NULL || (camera->XSize==XSize && camera->YSize==YSize)) return;
     camera_paint_initialise(camera);
 
-    camera->pixelColour = (int*) _realloc (camera->pixelColour , size);
+    camera->pixelColour = (int*) _realloc (camera->pixelColour , size, "cameraSize");
     camera->pixelObject = (PixelObject**) (camera->pixelColour + XSize*YSize);
     camera->storeX      = (SmaFlt (*)[3]) (camera->pixelObject + XSize*YSize);
     camera->storeY      = (SmaFlt (*)[3]) (camera->storeX      + XSize);
@@ -133,31 +133,26 @@ static void cameraSizeChange (Camera *camera, int XSize, int YSize)
 
 
 
-static inline int Flt2Int (SmaFlt n) { return (int)(n + ((n>=0) ? +0.000001 : -0.000001)); }
-
 static void camera_process (Object *obj, bool update)
 {
     int XPost, YPost, XSize, YSize;
     Camera *temp, *cmr = (Camera*)obj;
     if(!obj) return;
     object_process(obj, update);
+    uint32_t stack[10000];
 
     if(update)
     {
-        GeneralArg garg = { .caller = obj->container, .message = errorMessage(), .argument = NULL };
-        ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
-
         if((cmr->dXPost != 0 || cmr->dYPost != 0
          || cmr->dXSize != 0 || cmr->dYSize != 0)
          &&(headMouse->clickedObject != obj))
         {
-            evaluation_instance++;
-            replacement_container = obj->container;
+            evaluation_instance(true);
             user_input_allowed = true;
 
             temp = headMouse->clickedCamera;
             headMouse->clickedCamera = cmr;
-            component_evaluate (eca, obj->boundary_comp, NULL);
+            component_evaluate (stack, obj->container, obj->boundary_comp, NULL);
             headMouse->clickedCamera = temp;
 
             user_input_allowed = false;
@@ -165,9 +160,9 @@ static void camera_process (Object *obj, bool update)
         }
         cmr->dXPost = cmr->dYPost = cmr->dXSize = cmr->dYSize = 0;
 
-        if(!component_evaluate( eca, obj->boundary_comp, VST61)
-        || !floatFromVst( obj->boundary, eca.stack, 6, eca.garg->message, "object boundary"))
-            display_message(eca.garg->message);
+        value v = component_evaluate(stack, obj->container, obj->boundary_comp, NULL);
+        if(!floatFromValue(v, 6, 1, obj->boundary, "camera rectangle"))
+            display_message(getMessage(stack));
     }
     XPost = Flt2Int(obj->boundary[0]);
     YPost = Flt2Int(obj->boundary[1]);
@@ -176,11 +171,15 @@ static void camera_process (Object *obj, bool update)
 
     if(XSize<0 || XSize>10000 || YSize<0 || YSize>10000)
     {
-        char errormessage[100];
-        sprintf1(errormessage, "Error: camera size = (%d, %d) is invalid.\n", XSize, YSize);
-        display_message(CST21(errormessage));
-        tools_do_pause(true);
+        const_Str2 argv[3];
+        value v = stack;
+        argv[0] = L"Error: camera size = (%s, %s) is invalid.\n";
+        argv[1] = (Str2)v; v+=64; intToStr((Str2)v, XSize);
+        argv[2] = (Str2)v; v+=64; intToStr((Str2)v, YSize);
+        setMessage(v, 0, 3, argv);
+        display_message(getMessage(v));
 
+        tools_do_pause(true);
         if(update)
         {
             // schedule to recover current size
@@ -214,27 +213,24 @@ static bool camera_destroy (Object *obj)
     if(obj->container && !inherits_remove(obj->container)) return false;
 
     camera_paint_initialise(camera); // do this before freeing pixelColour
-    _free(camera->pixelColour);
+    _free(camera->pixelColour, "cameraSize");
     camera->pixelColour = NULL;
 
     // drawing_window_remove() may want to call camera_destroy() recursively,
     // for that reason cmr->pixelColour is set to NULL then is later checked.
     drawing_window_remove(camera->drawing_window);
 
-    list_delete(camera_list, camera);
+    list_delete(camera_list(), camera);
     memory_freed("Camera");
     return true;
 }
 
 
 
-bool camera_set (Container* container)
+bool camera_set (value stack, Container* container)
 {
     Component *origin_comp, *axes_comp, *boundary_comp, *variable_comp;
-    Camera *camera = (Camera*)list_find(camera_list, 0, object_find, container);
-
-    GeneralArg garg = { .caller = container, .message = errorMessage(), .argument = NULL };
-    ExprCallArg eca = { .garg = &garg, .expression = NULL, .stack = mainStack() };
+    Camera *camera = (Camera*)list_find(camera_list(), 0, object_find, container);
 
     Component *comp;
     GET_COMPONENT ("origin"   , origin_comp  , 0, VST31)
@@ -247,7 +243,7 @@ bool camera_set (Container* container)
     {
         memory_alloc("Camera");
         camera = (Camera*)list_new(NULL, sizeof(Camera));
-        list_head_push(camera_list, camera);
+        list_head_push(camera_list(), camera);
 
         obj = (Object*)camera;
         obj->container = container;
@@ -260,11 +256,11 @@ bool camera_set (Container* container)
         camera->drawing_window = drawing_window_new ();
         if(camera->drawing_window == NULL)
         {
-            strcpy21 (errorMessage(), "Could not create a new window for the new camera.\r\n");
+            setError(stack, L"Could not create a new window for the new camera.\r\n");
             camera_destroy((Object*)camera);
             return false;
         }
-        else drawing_window_name(camera->drawing_window, CST23(c_name(container)));
+        else drawing_window_name(camera->drawing_window, C23(c_name(container)));
     }
     obj->origin_comp   = origin_comp;
     obj->axes_comp     = axes_comp;
@@ -283,7 +279,7 @@ bool camera_set (Container* container)
 Camera *findCameraFromDW (DrawingWindow dw)
 {
     if(dw==NULL) return NULL;
-    Camera *camera = (Camera*)list_head(camera_list);
+    Camera *camera = (Camera*)list_head(camera_list());
     for( ; camera != NULL; camera = (Camera*)list_next(camera))
         if(drawing_window_equal(camera->drawing_window, dw))
             break;
@@ -295,7 +291,7 @@ void drawing_window_close_do (DrawingWindow dw)
     wait_for_draw_to_finish();
     Object *camera = (Object*)findCameraFromDW(dw);
     assert(camera!=NULL);
-    if(camera->container) display_main_text(CST23(c_rfet(camera->container)));
+    if(camera->container) display_main_text(C23(c_rfet(camera->container)));
     camera->destroy(camera);
 }
 

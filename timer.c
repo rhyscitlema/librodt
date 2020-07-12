@@ -7,7 +7,7 @@
 #include <timer.h>
 
 
-static value timer_time;
+static uint32_t timer_time[100];
 
 static int timer_period = 100; // in milliseconds, 1000/100ms = 10 fps
 
@@ -17,34 +17,43 @@ static bool timer_enabled = false;
 bool timer_handler_do()
 {
     if(!timer_enabled) return false;
-    timer_time = add(timer_time, setSmaRa2(timer_period, 1000));
+    value v = vnext(timer_time);
+    v = setSmaInt(v, timer_period);
+    v = setSmaInt(v, 1000);
+    v = _add(_div(v));
     userinterface_update();
     return timer_enabled;
 }
 
 
-bool timer_set_period (int period)
+value timer_set_period (value stack)
 {
+    if(VERROR(stack)) return stack;
+    value y = vPrev(stack);
+
+    if(value_type(vGet(y))!=aSmaInt)
+        return setError(y, L"Error: timer period must be an integer.");
+    int period = getSmaInt(vGet(y));
+
     int t = timer_period;
     timer_period = period;
     if(period<0) period = -period;
 
     if(!timer_enabled)
     {   timer_set_period_do(period);
-        return true;
+        return setBool(y, true);
     }
     else if((t<0?-t:t)==period)
-        return true;
+        return setBool(y, true);
     else
     {   timer_period = t;
-        strcpy21(errorMessage(), "Pause first!");
-        return false;
+        return setError(y, L"Pause first!");
     }
 }
 
 
 void timer_install_do ()
-{ timer_time = setSmaInt(0); }
+{ setSmaInt(timer_time, 0); }
 
 void timer_pause (bool pause)
 {
@@ -54,18 +63,28 @@ void timer_pause (bool pause)
         timer_pause_do();
     }
     else
-    {   timer_set_period(timer_period);
+    {   int t = timer_period;
+        timer_set_period_do(t<0?-t:t);
         timer_enabled = true;
     }
 }
 
 bool timer_paused() { return !timer_enabled; }
 
+value timer_set_time (value stack)
+{
+    value y = vPrev(stack);
+    const_value n = vGet(y);
+    enum ValueType t = value_type(n);
+    if(t!=aSmaInt && t!=aSmaFlt)
+        return setError(y, L"Error: given time is not a valid number.");
+    vcopy(timer_time, n);
+    return setBool(y, true);
+}
+
 int timer_get_period () { return timer_period; }
 
-void timer_set_time (value time) { timer_time = time; }
-
-value timer_get_time () { return timer_time; }
+value timer_get_time (value stack) { return vcopy(stack, timer_time); }
 
 
 

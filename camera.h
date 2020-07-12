@@ -12,8 +12,8 @@ typedef struct _PixelObject
 {
     Object* object;     // the object
     SmaFlt distance;    // the vertical distance from camera to object
-	value point[1+3];   // the viewed point on the object
-    value colour[1+4];  // the colour of the point
+	SmaFlt point[3];    // the viewed point on the object
+    SmaFlt colour[4];   // the colour of the point
     struct _PixelObject *next;
 } PixelObject;
 
@@ -42,12 +42,12 @@ typedef struct _Camera
 
 
 #ifdef LIBRODT
-extern List* camera_list;
+extern List* camera_list();
 #else
-#define camera_list NULL
+#define camera_list() NULL
 #endif
 
-bool camera_set (Container* container);
+bool camera_set (value stack, Container* container);
 
 bool camera_putpixel (Camera *camera, int pixel, const PixelObject* pixelObject);
 
@@ -65,13 +65,13 @@ void drawing_window_close_do (DrawingWindow dw);
 void drawing_window_resize_do (DrawingWindow dw);
 
 
-extern SmaFlt PIXELSIZE;
+extern uint32_t PixelsPUL;
 
-#define PixelToPointX(pixel,cmr) (((pixel) - (cmr)->XSize/2)*PIXELSIZE)
-#define PixelToPointY(pixel,cmr) (((pixel) - (cmr)->YSize/2)*PIXELSIZE)
+#define PixelToPointX(pixel,cmr) (((pixel) - (cmr)->XSize/2.0)/PixelsPUL)
+#define PixelToPointY(pixel,cmr) (((pixel) - (cmr)->YSize/2.0)/PixelsPUL)
 
-#define PointToPixelX(point,cmr) (((point)/PIXELSIZE + (cmr)->XSize/2))
-#define PointToPixelY(point,cmr) (((point)/PIXELSIZE + (cmr)->YSize/2))
+#define PointToPixelX(point,cmr) (((point)*PixelsPUL + (cmr)->XSize/2.0))
+#define PointToPixelY(point,cmr) (((point)*PixelsPUL + (cmr)->YSize/2.0))
 
 #define PixelInCamera(cmr,x,y) ((x)>=0 && (x) < (cmr)->XSize && (y)>=0 && (y) < (cmr)->YSize)
 

@@ -19,7 +19,7 @@ typedef struct _Object
     Component *boundary_comp;
     Component *variable_comp;
 
-    SmaFlt position[3];     // Origin position vector (in world coordinates)
+    SmaFlt origin[3];       // Origin position vector (in world coordinates)
     SmaFlt axes[3][3];      // xyz-axes unit vectors (in world coordinates)
     SmaFlt boundary[6];     // Box enclosing the object (in local coordinates)
     SmaFlt variable[1];     // additional variable used by the object
@@ -66,15 +66,14 @@ void object_paint (Object *obj, void* camera, bool (*shootPixel) (Object *obj, v
 
 
 #define CHECK_COMPONENT(comp, component, args, rvst) \
-{   comp = component_parse(comp); \
-    eca.garg->argument = args; \
-    if(!component_evaluate(eca, comp, rvst)) return false; \
+{   assert(comp!=NULL); \
+    comp = component_parse(stack, comp); \
+    if(VERROR(component_evaluate(stack, container, comp, args))) return false; \
     component = comp; \
 }
 
 #define GET_COMPONENT(comp_name, component, args, rvst) \
-{   comp = component_find(container, CST31(comp_name), eca.garg->message, 0); \
-    assert(comp!=NULL); \
+{   comp = component_find(stack, container, C31(comp_name), 0); \
     CHECK_COMPONENT(comp, component, args, rvst) \
 }
 

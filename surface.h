@@ -14,12 +14,12 @@ typedef struct _Surface
 } Surface;
 
 #ifdef LIBRODT
-extern List* surface_list;
+extern List* surface_list();
 #else
-#define surface_list NULL
+#define surface_list() NULL
 #endif
 
-bool surface_set (Container* container);
+bool surface_set (value stack, Container* container);
 
 #endif
 

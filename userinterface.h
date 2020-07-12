@@ -36,17 +36,17 @@ enum UI_ITEM
 
 /*** the below are provided by the platform ***/
 
-const wchar* userinterface_get_text (enum UI_ITEM ui_item);
-void userinterface_set_text (enum UI_ITEM ui_item, const wchar* text);
+const_Str2 userinterface_get_text (enum UI_ITEM ui_item);
+void userinterface_set_text (enum UI_ITEM ui_item, const_Str2 text);
 void userinterface_clean ();
 
 bool main_window_resize ();
 extern int main_window_width;
 extern int main_window_height;
 
-// also those from _stdio.h
+// see also those from _stdio.h
 
-// also those from timer.h
+// see also those from timer.h
 
 /*** the above are provided by the platform ***/
 
@@ -55,16 +55,16 @@ void userinterface__init ();
 void userinterface__clean ();
 void wait_for_draw_to_finish ();
 
-void display_main_text (const wchar* text);
-void display_message (const wchar* message);
+void display_main_text (const_Str2 text);
+void display_message (const_Str2 message);
 void display_time_text();
-const wchar* userMessage();
+const_Str2 userMessage();
 
 extern Container* main_entry_rfet;
 void select_container (Container* container);
 
-bool calculator_evaluate_main (const wchar* source);
-bool calculator_evaluate_calc (bool parse);
+value calculator_evaluate_main (value stack, const_Str2 source);
+value calculator_evaluate_calc (value stack, bool parse);
 void userinterface_update ();
 
 extern volatile int draw_request_count;
