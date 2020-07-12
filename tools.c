@@ -79,11 +79,12 @@ bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
 	for(i=0; i < uidt_count; i++)
 		if(!do_uidt_eval(stack, uidt, layout[i], 4, uidt_name[i])) break;
 
-	if(i==uidt_count // if there was no error
-	&& _uidt!=NULL)  // if checking for error
-	{
+	bool ok = (i == uidt_count);
 	do{
-		i=0; // assume an error
+		if(!ok      // if there was error, or
+		|| !_uidt)  // if not checking for error
+			break;
+		ok = false; // assume error
 
 		if(!do_uidt_eval(stack, uidt, NULL, 1, "lower_period")) break;
 		if(!do_uidt_eval(stack, uidt, NULL, 1, "higher_period")) break;
@@ -92,12 +93,54 @@ bool tools_uidt_eval (value stack, int layout[][4], void* _uidt)
 		if(!do_uidt_eval(stack, uidt, (int*)&PixelsPUL, 1, "PixelsPUL")) break;
 		#endif
 
-		i=uidt_count; // no error found
+		ok = true; // no error found
 		curr_uidt = uidt;
 		uidt->owner = &curr_uidt;
 	}while(0);
+
+	for(i=0; i<CONVERT_TEXT_COUNT; i++)
+	{
+		wchar text[100] = L"ConvertTextF";
+		intToStr(text+strlen2(text), i);
+
+		lchar array[20];
+		const_Str3 str = set_lchar_array(array, 20, text, NULL);
+
+		Component* component = component_find(stack, curr_uidt, str, 0);
+		if(component)
+		{
+			// locate the first #"..." after component name and before newline '\n'
+			str = C37(c_name(component).end);
+			const_Str3 name = {0};
+			int size=0;
+			while(true)
+			{
+				str = sNext(str);
+				wchar c = sChar(str);
+				if(c=='\n' || c=='\0')
+					break;
+				if(name.ptr){ // if #"... was found before
+					if(++size==100)  // if too many characters
+						break;
+					if(c=='"'){      // if found a matching "
+						name.end = str.ptr;
+						strcpy23(text, name);
+					}
+				}
+				else if(c=='#'){
+					str = sNext(str);
+					c = sChar(str);
+					if(c=='"'){
+						str = sNext(str);
+						name.ptr = str.ptr;
+					}
+				}
+			}
+		}
+		int item = i | (component ? 0 : 0x80);
+		setMenuItemTextOfConvertText (item, text);
 	}
-	return (i==uidt_count);
+	return ok;
 }
 
 
@@ -106,17 +149,17 @@ const wchar* userMessage() { return usermessage; }
 
 static bool set_user_message (value stack, Container* rodt)
 {
-	Component* comp = container_find(stack, rodt, C31(".|message"), true);
-	comp = component_parse(stack, comp);
+	Component* component = container_find(stack, rodt, C31(".|message"), true);
+	component = component_parse(stack, component);
 
 	evaluation_instance(true); // is this even needed here?!
-	if(VERROR(component_evaluate(stack, rodt, comp, NULL)))
+	if(VERROR(component_evaluate(stack, rodt, component, NULL)))
 		return false; // keep existing usermessage
 
 	if(!isStr2(vGet(stack)))
 	{
 		argv[0] = L"Error on %s at (%s,%s) in %s:\r\nThis must evaluate to a string.";
-		setMessageE(stack, 0, 1, argv, c_name(comp));
+		setMessageE(stack, 0, 1, argv, c_name(component));
 		return false;
 	}
 	astrcpy22(&usermessage, getStr2(vGet(stack)));
@@ -183,9 +226,9 @@ enum RFET_TYPE {
 
 static inline bool ISOBJECT(enum RFET_TYPE type)
 { return
-	(  type==RFET_CAMERA
-	|| type==RFET_SURFACE
-	|| type==RFET_DOCUMENT );
+	type==RFET_CAMERA  ||
+	type==RFET_SURFACE ||
+	type==RFET_DOCUMENT ;
 }
 
 static enum RFET_TYPE get_type (const Container* c)
@@ -208,12 +251,12 @@ static enum RFET_TYPE get_type (const Container* c)
 
 static inline bool is_base (const Container* c)
 { return
-	(  c==base_uidt
-	|| c==base_rodt
-	|| c==base_object
-	|| c==base_camera
-	|| c==base_surface
-	|| c->parent==NULL );
+	c==base_uidt    ||
+	c==base_rodt    ||
+	c==base_object  ||
+	c==base_camera  ||
+	c==base_surface ||
+	c->parent==NULL ;
 }
 
 
@@ -248,7 +291,8 @@ static bool rodt_load (value stack, Container* rodt)
 
 			wchar save[strlen2(argv[1])+1];
 			strcpy22(save, argv[1]);
-			if(!wait_for_confirmation(L"Error", getMessage(v)))
+
+			if(!user_confirm(L"Error", getMessage(v)))
 			{
 				setError(stack, save);
 				return false;
@@ -289,7 +333,7 @@ bool checkfail (value stack, const Container* c, const_Str3 name, bool hasType, 
 	if(isentry && hasType)
 	{
 		setError(stack, L"Provide a container name different from \"entry\".");
-		wait_for_user_first(L"Error", getMessage(stack));
+		user_alert(L"Error", getMessage(stack));
 		return true;
 	}
 	if(isNew && !isentry && g_check)
@@ -300,7 +344,7 @@ bool checkfail (value stack, const Container* c, const_Str3 name, bool hasType, 
 		value v = vnext(stack);
 		setMessage(v, 0, 3, argv);
 
-		if(!wait_for_confirmation(L"Confirm to continue", getMessage(v)))
+		if(!user_confirm(L"Confirm to continue", getMessage(v)))
 		{
 			setError(stack, L"Container creation cancelled.");
 			return true;
@@ -365,7 +409,7 @@ void tools_do_eval (const wchar* source)
 		else if(container==curr_uidt && type!=RFET_UIDT)
 		{
 			setError(stack, L"Container is no more of type UIDT. The used UIDT will change back to the original.");
-			wait_for_user_first(L"Warning", getMessage(stack));
+			user_alert(L"Warning", getMessage(stack));
 			if(tools_uidt_eval(stack, Layout, base_uidt))
 				main_window_resize();
 		}
@@ -391,7 +435,8 @@ void tools_do_delete ()
 	if(container==curr_uidt)
 	{
 		setError(stack, L"Container of type UIDT will be deleted. The used UIDT will change back to the original. Is that OK?"); // TODO: maybe change to first one inherited
-		if(!wait_for_confirmation(L"Warning", getMessage(stack))) return;
+		if(!user_confirm(L"Warning", getMessage(stack)))
+			return;
 		if(tools_uidt_eval(stack, Layout, base_uidt))
 			main_window_resize();
 	}
@@ -454,17 +499,18 @@ void tools_get_prev()
 {
 	void* node = list_head_pop(container_list());
 	list_tail_push(container_list(), node);
-	select_container(*(Container**)list_head(container_list()));
+	node = list_head(container_list());
+	if(node) select_container(*(Container**)node);
 }
 
 void tools_get_next()
 {
 	void* node = list_tail_pop(container_list());
 	list_head_push(container_list(), node);
-	select_container(*(Container**)node);
+	if(node) select_container(*(Container**)node);
 }
 
-void tools_do_clear()
+void tools_do_clear() // TODO: consider also adding new_file();
 {
 	main_entry_rfet = NULL;
 	userinterface_set_text(UI_MESG_TEXT, NULL);
@@ -493,8 +539,8 @@ void tools_go_forward (bool forward)
 	if(forward ^ positive)
 	{
 		period = -period;
-		uint32_t V[100];
-		timer_set_period(setSmaInt(V, period));
+		uint32_t stack[1000];
+		timer_set_period(setSmaInt(stack, period));
 	}
 	time_reverse_set_text();
 	display_time_text();
@@ -507,17 +553,21 @@ static void edit_period (const char* name)
 
 	if(!curr_uidt) curr_uidt = base_uidt;
 	Component* component = component_find(stack, curr_uidt, C31(name), 0);
-	assert(component != NULL);
 
-	evaluation_instance(true);
-	stack = component_evaluate(stack, curr_uidt, component, NULL);
-
-	stack = timer_set_period(stack);
-	if(VERROR(stack))
-		display_message(getMessage(vGetPrev(stack)));
+	assert(component!=NULL);
+	if(!component)
+		display_message(getMessage(vGet(stack)));
 	else{
-		time_reverse_set_text();
-		display_time_text();
+		evaluation_instance(true);
+		stack = component_evaluate(stack, curr_uidt, component, NULL);
+
+		stack = timer_set_period(stack);
+		if(VERROR(stack))
+			display_message(getMessage(vGetPrev(stack)));
+		else{
+			time_reverse_set_text();
+			display_time_text();
+		}
 	}
 }
 void tools_lower_period () { edit_period("lower_period"); }
@@ -559,6 +609,36 @@ bool tools_set_time (const wchar* entry)
 
 
 
+const_value tools_convert_text (const wchar* text, int ID)
+{
+	value stack = stackArray(); // get global array
+	const_value n = NULL;
+
+	wchar name[20] = L"ConvertTextF";
+	intToStr(name+strlen2(name), ID);
+
+	lchar array[20];
+	const_Str3 str = set_lchar_array(array, 20, name, NULL);
+
+	if(!curr_uidt) curr_uidt = base_uidt;
+	Component* component = component_find(stack, curr_uidt, str, 0);
+	if(component)
+	{
+		value v = stack;
+		stack = setStr22(v, text); // set argument
+
+		evaluation_instance(true);
+		v = component_evaluate(stack, curr_uidt, component, v);
+
+		if(!VERROR(v)) n = vGet(stack);
+	}
+	if(!n) user_alert(L"Error", getMessage(vGet(stack)));
+	return n;
+}
+
+
+
+
 static void object_remove_all (List* list)
 {
 	Object *prev, *obj = (Object*)list_tail(list);
@@ -576,12 +656,9 @@ static void object_remove_all (List* list)
 void tools_remove_all_objects (bool ask_confirmation)
 {
 	wait_for_draw_to_finish();
-	if(ask_confirmation)
-	{
-		const wchar* title = L"Confirm";
-		const wchar* message = L"Remove All Objects?";
-		if(!wait_for_confirmation(title, message)) return;
-	}
+	if(ask_confirmation
+	&& !user_confirm(L"Confirm", L"Remove All Objects?"))
+		return;
 	mouse_clear_pointers(headMouse);
 	display_main_text(NULL);
 	display_message(NULL);
@@ -683,8 +760,14 @@ static const wchar base_uidt_rfet[] =
 	"    (\"status_bar    \" , status_bar    ) ;\r\n"
 	"\r\n"
 	"\r\n"
-	"lower_period  =  TimerPeriod - 25;\r\n"
-	"higher_period =  TimerPeriod + 25;\r\n"
+	"private change(p,n) = p<0 ? p-n : p+n ;\r\n"
+	"lower_period  =  change(TimerPeriod, -25);\r\n"
+	"higher_period =  change(TimerPeriod, +25);\r\n"
+	"\r\n"
+	"ConvertTextF0(text) = PcnToChr(text) ; #\"Partly Code Number to Character\"\r\n"
+	"ConvertTextF1(text) = ChrToPcn(text) ; #\"Character to Partly Code Number\"\r\n"
+	"ConvertTextF2(text) = ChrToFcn(text) ; #\"Character to Fully Code Number\"\r\n"
+	"ConvertTextF3(text) = SetIsFcn(text) ; #\"Set Partly is Fully Code Number\"\r\n"
 	"\r\n"
 	"PixelsPUL = 1000 ; # Pixels Per Unit Length\r\n";
 #else
@@ -764,8 +847,14 @@ static const wchar base_uidt_rfet[] =
 	"    (\"status_bar    \" , status_bar    ) ;\r\n"
 	"\r\n"
 	"\r\n"
-	"lower_period  =  TimerPeriod - 25;\r\n"
-	"higher_period =  TimerPeriod + 25;\r\n"
+	"private change(p,n) = p<0 ? p-n : p+n ;\r\n"
+	"lower_period  =  change(TimerPeriod, -25);\r\n"
+	"higher_period =  change(TimerPeriod, +25);\r\n"
+	"\r\n"
+	"ConvertTextF0(text) = PcnToChr(text) ; #\"Partly Code Number to Character\"\r\n"
+	"ConvertTextF1(text) = ChrToPcn(text) ; #\"Character to Partly Code Number\"\r\n"
+	"ConvertTextF2(text) = ChrToFcn(text) ; #\"Character to Fully Code Number\"\r\n"
+	"ConvertTextF3(text) = SetIsFcn(text) ; #\"Set Partly is Fully Code Number\"\r\n"
 	"\r\n";
 #endif
 

@@ -71,7 +71,7 @@ static value calculator_evaluate (value stack, const wchar* source, Container** 
 				out = getStr2(vGet(stack));
 				userinterface_set_text(input, out);
 			}
-			stack = VstToStr(stack, PUT_NEWLINE|0, -1, -1); // see _math.h
+			stack = VstToStr(stack, TOSTR_NEWLINE); // see _math.h
 			out = getStr2(vGetPrev(stack)); // get final result
 		}
 	}
@@ -79,7 +79,7 @@ static value calculator_evaluate (value stack, const wchar* source, Container** 
 	return stack;
 }
 
-	   Container* main_entry_rfet = NULL;
+       Container* main_entry_rfet = NULL;
 static Container* calculator_rfet = NULL;
 
 value calculator_evaluate_main (value stack, const wchar* source)
@@ -99,7 +99,7 @@ void display_time_text()
 	v = setSmaInt(v, timer_get_period());
 	v = timer_get_time(v);
 	v = tovector(v, 2);
-	v = VstToStr(v, 0,-1,-1);
+	v = VstToStr(v, 0);
 	const wchar* out = getStr2(vGetPrev(v));
 	userinterface_set_text(UI_TIME_TEXT, out);
 }

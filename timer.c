@@ -78,13 +78,13 @@ value timer_set_time (value stack)
 	enum ValueType t = value_type(n);
 	if(t!=aSmaInt && t!=aSmaFlt)
 		return setError(y, L"Error: given time is not a valid number.");
-	vcopy(timer_time, n);
+	vCopy(timer_time, n);
 	return setBool(y, true);
 }
 
 int timer_get_period () { return timer_period; }
 
-value timer_get_time (value stack) { return vcopy(stack, timer_time); }
+value timer_get_time (value stack) { return vCopy(stack, timer_time); }
 
 
 

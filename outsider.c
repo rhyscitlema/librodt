@@ -191,7 +191,7 @@ static value getPoint (value v, const Camera* cmr)
 		if(cmr->pixelObject[i].object==NULL) break;
 		return floatToValue(v, 3, 1, cmr->pixelObject[i].point);
 	}while(0);
-	return vcopy(v, VST31); // set to zero
+	return vCopy(v, VST31); // set to zero
 }
 #endif
 
@@ -269,10 +269,9 @@ value set_outsider (value v, int ID)
 			v = setBool(v, (AUI && headMouse->Button[ID]));
 
 		else{
-			const_Str2 argv[2];
-			v = VstToStr(setSmaInt(v, ID), 0,-1,-1);
-			argv[0] = L"Software outsider ID = %s is unrecognised.";
-			argv[1] = getStr2(vGetPrev(v));
+			const_Str2 argv[2] = {
+				L"Software outsider ID = %s is unrecognised.",
+				TIS2(0,ID) };
 			v = setMessage(v, 0, 2, argv);
 		}
 		break;

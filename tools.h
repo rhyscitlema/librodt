@@ -36,6 +36,7 @@ extern void tools_higher_period ();
 
 extern bool tools_set_time (const wchar* entry);
 
+extern const_value tools_convert_text (const wchar* text, int ID);
 
 extern void tools_remove_all_objects (bool ask_confirmation);
 

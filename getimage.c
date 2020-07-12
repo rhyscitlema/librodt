@@ -66,7 +66,7 @@ value get_image_width_height (value v)
 {
 	value s = vPrev(v);
 	const_value n = vGet(s);
-	if(!(*n >> 28)) return v;
+	if(!VTYPE(*n)) return v;
 	if(!isStr2(n)) return setError(s, L"Argument must evaluate to a string.");
 
 	const Image* image;
@@ -82,7 +82,7 @@ value get_image_width_height (value v)
 
 
 static long getLong (value v, const_value n)
-{ return getSmaInt(vPrev(toInt(setRef(v,n)))); }
+{ return getSmaInt(vGetPrev(toInt(setRef(v,n)))); }
 
 value get_image_pixel_colour (value v)
 {
@@ -92,7 +92,7 @@ value get_image_pixel_colour (value v)
 	value s = vPrev(v);
 	const_value n = vGet(s);
 
-	if(!(*n >> 28)) return v;
+	if(!VTYPE(*n)) return v;
 	value e = check_arguments(s,*n,3); if(e) return e;
 
 	n += 2; // skip vector header

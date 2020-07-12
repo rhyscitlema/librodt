@@ -14,7 +14,7 @@
 #define TEXT_CLEAR "Clear"
 #define TEXT_PAUSE "||"
 #define TEXT_RESUME "\u25BA"
-#define TEXT_FORWARD "-->"
+#define TEXT_FORWARD "++>"
 #define TEXT_BACKWARD "<--"
 #define TEXT_LOWER "[ ]"
 #define TEXT_HIGHER "[   ]"
@@ -38,6 +38,9 @@ enum UI_ITEM {
 const_Str2 userinterface_get_text (enum UI_ITEM ui_item);
 void userinterface_set_text (enum UI_ITEM ui_item, const_Str2 text);
 void userinterface_clean ();
+
+#define CONVERT_TEXT_COUNT 16
+bool setMenuItemTextOfConvertText (int item, const wchar* text);
 
 bool main_window_resize ();
 extern int main_window_width;
