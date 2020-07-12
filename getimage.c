@@ -4,7 +4,7 @@
 
 #include <getimage.h>
 #include <rwif.h>
-#include <avl.h>
+#include <tree.h>
 #include <_stdio.h>
 #include <_string.h>
 #include <expression.h>
@@ -16,7 +16,7 @@ typedef struct _Image {
 	const wchar* fileName;
 } Image;
 
-static AVLT images = {0};
+static Tree images = {0};
 
 static int node_compare (const void* a, const void* b, const void* arg)
 { return strcmp22( ((const Image*)a)->fileName, ((const Image*)b)->fileName ); }
@@ -29,7 +29,7 @@ static int node_compare (const void* a, const void* b, const void* arg)
 static Image* load_image_file (value stack, const wchar* fileName)
 {
 	Image img={0}; img.fileName = fileName;
-	Image* image = avl_do(AVL_FIND, &images, &img, 0, NULL, node_compare);
+	Image* image = tree_do(TREE_FIND, &images, &img, 0, NULL, node_compare);
 	if(image) return image;
 
 	const char* filename = C12(add_path_to_file_name(fileName, (Str2)stack));
@@ -40,24 +40,25 @@ static Image* load_image_file (value stack, const wchar* fileName)
 	}
 	else memory_alloc("Image");
 
-	image = (Image*)avl_new(NULL, sizeof(Image) + (strlen2(fileName)+1)*sizeof(wchar) );
+	image = (Image*)tree_new(NULL, sizeof(Image) + (strlen2(fileName)+1)*sizeof(wchar) );
+
 	strcpy22((wchar*)(image+1), fileName); // copy fileName to Image structure
 	image->fileName = (wchar*)(image+1);
 	image->data = img.data;
 
-	avl_do(AVL_PUT, &images, image, 0, NULL, node_compare);
+	tree_do(TREE_PUT, &images, image, 0, NULL, node_compare);
 	return image;
 }
 
 void unload_images()
 {
-	Image* image = (Image*)avl_min(&images);
-	for( ; image; image = (Image*)avl_next(image))
+	Image* image = (Image*)tree_first(&images);
+	for( ; image; image = (Image*)tree_next(image))
 	{
 		memory_freed("Image");
 		clear_image_data(&image->data);
 	}
-	avl_free(&images);
+	tree_free(&images);
 }
 
 

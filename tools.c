@@ -279,8 +279,8 @@ static bool process_container (value stack, Container* c)
 
 static bool rodt_load (value stack, Container* rodt)
 {
-	void* c = avl_min(&rodt->inners);
-	for( ; c != NULL; c = avl_next(c))
+	void* c = tree_first(&rodt->inners);
+	for( ; c != NULL; c = tree_next(c))
 	{
 		if(!process_container(stack, (Container*)c))
 		{

@@ -48,7 +48,7 @@ typedef struct _ObjectPaint {
 } ObjectPaint;
 
 
-int object_find (const void* key1, const void* key2, const void* arg);
+int object_find (const ITEM* item1, const ITEM* item2, const void* arg);
 
 void object_process (Object *obj, bool update);
 

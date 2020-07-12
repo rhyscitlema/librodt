@@ -12,11 +12,11 @@
 #include <tools.h>
 
 
-int object_find (const void* key1, const void* key2, const void* arg)
+int object_find (const ITEM* item1, const ITEM* item2, const void* arg)
 {
-	const Container* c1 = (const Container*)key1;
-	const Container* c2 = ((const Object*)key2)->container;
-	return ((c1 < c2) ? -1 : (c1 > c2) ? +1 : 0);
+	const Container* c1 = (const Container*)item1;
+	const Container* c2 = ((const Object*)item2)->container;
+	return (c1 < c2) ? -1 : (c1 > c2) ? +1 : 0;
 }
 
 
@@ -65,8 +65,8 @@ void object_process (Object *obj, bool update)
 		}
 		else if(user_input_allowed)
 		{
-			component = (Component*)avl_min(&caller->inners);
-			for( ; component != NULL; component = (Component*)avl_next(component))
+			component = (Component*)tree_first(&caller->inners);
+			for( ; component != NULL; component = (Component*)tree_next(component))
 			{
 				if(!*c_para(component) // if is a variable
 				&& VERROR(component_evaluate(stack, caller, component, NULL)))
