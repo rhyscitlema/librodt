@@ -1,7 +1,7 @@
 #ifndef _GETIMAGE_H
 #define _GETIMAGE_H
 /*
-    getimage.h
+	getimage.h
 */
 
 #include <structures.h>

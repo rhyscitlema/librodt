@@ -24,4 +24,3 @@ void mthread_signal_wait (mthread_signal signal);
 void mthread_signal_free (mthread_signal signal);
 
 #endif
-

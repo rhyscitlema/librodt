@@ -1,7 +1,7 @@
 #ifndef _CAMERA_H
 #define _CAMERA_H
 /*
-    camera.h
+	camera.h
 */
 
 #include "object.h"
@@ -10,25 +10,25 @@
 
 typedef struct _PixelObject
 {
-    Object* object;     // the object
-    SmaFlt distance;    // the vertical distance from camera to object
+	Object* object;     // the object
+	SmaFlt distance;    // the vertical distance from camera to object
 	SmaFlt point[3];    // the viewed point on the object
-    SmaFlt colour[4];   // the colour of the point
-    //struct _PixelObject *next;
+	SmaFlt colour[4];   // the colour of the point
+	//struct _PixelObject *next;
 } PixelObject;
 
 
 typedef struct _Camera
 {
-    Object obj;                         // this must be the first declaration
+	Object obj;                         // this must be the first declaration
 
-    int XPost, YPost, XSize, YSize;     // Camera as a rectangle on the main screen
-    int dXPost, dYPost, dXSize, dYSize; // Resize of the camera rectangle
-    int XS, YS, notfirst, memorysize;
+	int XPost, YPost, XSize, YSize;     // Camera as a rectangle on the main screen
+	int dXPost, dYPost, dXSize, dYSize; // Resize of the camera rectangle
+	int XS, YS, notfirst, memorysize;
 
-    DrawingWindow drawing_window;       // Utility to draw to device screen
-    PixelObject* pixelObject;           // Array of objects painted by camera
-    int* pixelColour;                   // Array of colours for the camera pixels
+	DrawingWindow drawing_window;       // Utility to draw to device screen
+	PixelObject* pixelObject;           // Array of objects painted by camera
+	uint32_t* pixelColour;              // Array of colours for the camera pixels
 } Camera;
 
 
@@ -47,10 +47,10 @@ bool camera_putpixel (PixelObject *pObj, const PixelObject PO);
 
 
 /* Note, the below are:
- * - declared only in camera.h
- * - defined only in camera.c
- * - used only in drawing_window.c
- */
+*  - declared only in camera.h
+*  - defined only in camera.c
+*  - used only in drawing_window.c
+*/
 Camera *findCameraFromDW (DrawingWindow dw);
 void drawing_window_close_do (DrawingWindow dw);
 void drawing_window_resize_do (DrawingWindow dw);
@@ -68,4 +68,3 @@ extern uint32_t PixelsPUL;
 
 
 #endif
-

@@ -1,9 +1,9 @@
 #ifndef _DRAWING_WINDOW_H
 #define _DRAWING_WINDOW_H
 /*
-    drawing_window.h
+	drawing_window.h
 
-    This is used only by camera.h
+	This is used only by camera.h
 */
 
 #include <_stddef.h>

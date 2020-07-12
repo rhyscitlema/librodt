@@ -1,7 +1,7 @@
 #ifndef _USERINTERFACE_H
 #define _USERINTERFACE_H
 /*
-    userinterface.h
+	userinterface.h
 */
 
 #include <structures.h>
@@ -20,17 +20,16 @@
 #define TEXT_HIGHER "[   ]"
 #define TEXT_CALC "Calc"
 
-enum UI_ITEM
-{
-    UI_MAIN_TEXT,
-    UI_MESG_TEXT,
-    UI_PATH_TEXT,
-    UI_TIME_TEXT,
-    UI_PAUSE_BUTTON,
-    UI_FORWARD_BUTTON,
-    UI_CALC_INPUT,
-    UI_CALC_RESULT,
-    UI_ITEM_TOTAL
+enum UI_ITEM {
+	UI_MAIN_TEXT,
+	UI_MESG_TEXT,
+	UI_PATH_TEXT,
+	UI_TIME_TEXT,
+	UI_PAUSE_BUTTON,
+	UI_FORWARD_BUTTON,
+	UI_CALC_INPUT,
+	UI_CALC_RESULT,
+	UI_ITEM_TOTAL
 };
 
 
