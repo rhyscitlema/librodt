@@ -1,0 +1,5 @@
+*.o
+*.a
+visualstudio/x64/
+visualstudio/*.user
+lib4D/

@@ -10,9 +10,10 @@
 #include <userinterface.h>
 
 
+#ifdef LIBRODT
 static List _camera_list = {0};
 List* camera_list() { return &_camera_list; }
-
+#endif
 
 void camera_paint_initialise (Camera *camera)
 {

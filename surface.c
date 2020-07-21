@@ -8,8 +8,10 @@
 #include <userinterface.h>
 
 
+#ifdef LIBRODT
 static List _surface_list = {0};
 List* surface_list() { return &_surface_list; }
+#endif
 
 
 static bool surface_shootPixel (ObjectPaint op, int xp, int yp);
@@ -108,7 +110,6 @@ static bool surface_shootPixel (ObjectPaint op, int xp, int yp)
 {
 	bool i;
 	SmaFlt s, t, u;
-	SmaFlt prev, f_of_t, low, high;
 
 	SmaFlt *bdr;
 	SmaFlt A[3][2];
@@ -181,7 +182,7 @@ static bool surface_shootPixel (ObjectPaint op, int xp, int yp)
 	if(obj) return 1; // always executes*/
 
 
-	low = high = 0;
+	SmaFlt prev, f_of_t=0, low=0, high=0;
 	s = (u-t) / obj->variable[0];
 	prev = 1/(SmaFlt)PixelsPUL; // get prev = unit length per pixel
 	if(s<prev) s=prev; // 's' cannot be less than a pixel's size
@@ -211,22 +212,23 @@ static bool surface_shootPixel (ObjectPaint op, int xp, int yp)
 		else found=true; // if -LIM <= f_of_t <= +LIM
 
 		if(low!=0){
-		while(true)
-		{
-			t = (low+high) / 2.0;
-			if(equal(t,low) || equal(t,high))
+			while(true)
 			{
-				if(-1 < f_of_t && f_of_t < 1)
-					found=true;
-				break;
+				t = (low+high) / 2.0;
+				if(equal(t,low) || equal(t,high))
+				{
+					if(-1 < f_of_t && f_of_t < 1)
+						found=true;
+					break;
+				}
+				ComputeFOFT
+				if(i==0) break;
+				else if(f_of_t < -LIM) low = t;
+				else if(f_of_t > +LIM) high = t;
+				else { found=true; break; }
 			}
-			ComputeFOFT
-			if(i==0) break;
-			else if(f_of_t < -LIM) low = t;
-			else if(f_of_t > +LIM) high = t;
-			else { found=true; break; }
+			low=0;
 		}
-		low=0;}
 
 		if(found)
 		{

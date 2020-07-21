@@ -171,7 +171,6 @@ static bool putLocalPixel (const Object *obj, const Camera *cmr, SmaFlt x, SmaFl
 
 void object_paint (Object *obj, void* camera, bool (*shootPixel) (ObjectPaint op, int xp, int yp))
 {
-	int x, y;
 	int a, b;
 	int pX, nX, pY, nY;
 	SmaFlt marray[8][2];
@@ -179,10 +178,16 @@ void object_paint (Object *obj, void* camera, bool (*shootPixel) (ObjectPaint op
 	Camera *cmr = (Camera*)camera;
 	if(!obj || !cmr || !shootPixel) return;
 
-	char checkX[cmr->XSize]; memset(checkX, 0, sizeof(checkX));
-	char checkY[cmr->YSize]; memset(checkY, 0, sizeof(checkY));
-	SmaFlt X[cmr->XSize][3];
-	SmaFlt Y[cmr->YSize][3];
+	int x = cmr->XSize;
+	int y = cmr->YSize;
+	void* buffer = _realloc(NULL, (x + y) * (sizeof(char) + sizeof(SmaFlt)*3), "object_paint_buffer");
+	char* checkX = (char*)buffer;
+	char* checkY = checkX + x;
+	SmaFlt (*X)[3] = (SmaFlt (*)[3])(checkX + x + y);
+	SmaFlt (*Y)[3] = X + x;
+	memset(checkX, 0, cmr->XSize);
+	memset(checkY, 0, cmr->YSize);
+
 	ObjectPaint op;
 	op.obj = obj;
 	op.camera = camera;
@@ -285,6 +290,8 @@ void object_paint (Object *obj, void* camera, bool (*shootPixel) (ObjectPaint op
 			if(nY<0 && shootPixel(op, x, y-1)>0) { nY = y-1; nX = x; }
 		}
 	}
+
+	_realloc(buffer, 0, "object_paint_buffer");
 }
 
 
