@@ -76,7 +76,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..;..\..\algorithms;..\..\lib_std;..\..\librfet;..\..\read_write_image_file</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..\algorithms;..\lib_std;..\librfet;..\read_write_image_file</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
       <PreprocessorDefinitions>LIBRODT;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4204;4242;4244;4245;4255;4668;4820;</DisableSpecificWarnings>
@@ -127,28 +127,28 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\camera.c" />
-    <ClCompile Include="..\getimage.c" />
-    <ClCompile Include="..\mouse.c" />
-    <ClCompile Include="..\object.c" />
-    <ClCompile Include="..\outsider.c" />
-    <ClCompile Include="..\surface.c" />
-    <ClCompile Include="..\timer.c" />
-    <ClCompile Include="..\tools.c" />
-    <ClCompile Include="..\userinterface_.c" />
+    <ClCompile Include="camera.c" />
+    <ClCompile Include="getimage.c" />
+    <ClCompile Include="mouse.c" />
+    <ClCompile Include="object.c" />
+    <ClCompile Include="outsider.c" />
+    <ClCompile Include="surface.c" />
+    <ClCompile Include="timer.c" />
+    <ClCompile Include="tools.c" />
+    <ClCompile Include="userinterface_.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\camera.h" />
-    <ClInclude Include="..\drawing_window.h" />
-    <ClInclude Include="..\files.h" />
-    <ClInclude Include="..\getimage.h" />
-    <ClInclude Include="..\mouse.h" />
-    <ClInclude Include="..\mthread.h" />
-    <ClInclude Include="..\object.h" />
-    <ClInclude Include="..\surface.h" />
-    <ClInclude Include="..\timer.h" />
-    <ClInclude Include="..\tools.h" />
-    <ClInclude Include="..\userinterface.h" />
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="drawing_window.h" />
+    <ClInclude Include="files.h" />
+    <ClInclude Include="getimage.h" />
+    <ClInclude Include="mouse.h" />
+    <ClInclude Include="mthread.h" />
+    <ClInclude Include="object.h" />
+    <ClInclude Include="surface.h" />
+    <ClInclude Include="timer.h" />
+    <ClInclude Include="tools.h" />
+    <ClInclude Include="userinterface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
